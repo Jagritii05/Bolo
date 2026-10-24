@@ -1,12 +1,15 @@
 {
-  "name": "granite-pill",
+  "name": "localpill",
   "version": "1.0.0",
-  "description": "A floating pill-style speech-to-text app using IBM Granite 4.0",
-  "main": "main.js",
+  "description": "LocalPill: A private voice layer for Windows apps and AI agents with Graftcode",
+  "main": "src/main/index.js",
   "type": "module",
   "scripts": {
-    "start": "electron .",
-    "setup": "bash setup.sh"
+    "start": "electron src/main/index.js",
+    "start:rest": "set TRANSPORT=rest&& electron src/main/index.js",
+    "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
+    "test": "npm run test:speech",
+    "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests"
   },
   "devDependencies": {
     "electron": "^28.3.3"

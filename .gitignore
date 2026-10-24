@@ -9,3 +9,5 @@ scratch/
 gg.exe
 *.dll
 *.log
+.env
+.pytest_cache/

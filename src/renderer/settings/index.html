@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LocalPill Settings</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo-area">
+        <div class="logo-badge">LP</div>
+        <div>
+          <h1>LocalPill Settings</h1>
+          <p class="subtitle">Private voice layer for Windows & AI agents</p>
+        </div>
+      </div>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="engine">Speech Engine</button>
+      <button class="tab-btn" data-tab="pipeline">Text Pipeline</button>
+      <button class="tab-btn" data-tab="snippets">Snippets</button>
+      <button class="tab-btn" data-tab="general">General</button>
+    </div>
+
+    <div class="tab-content" id="tab-engine">
+      <div class="section-card">
+        <h3>Active Transcription Engine</h3>
+        <p class="desc">Select local on-device Whisper model or opt-in cloud API.</p>
+        
+        <div class="radio-group">
+          <label class="radio-card">
+            <input type="radio" name="engine" value="whisper-base" checked />
+            <div class="radio-body">
+              <div class="radio-title">Local Whisper Base (Recommended)</div>
+              <div class="radio-desc">Best balance of accuracy and latency (~140MB download). Fully local & private.</div>
+            </div>
+          </label>
+
+          <label class="radio-card">
+            <input type="radio" name="engine" value="whisper-tiny" />
+            <div class="radio-body">
+              <div class="radio-title">Local Whisper Tiny (Ultra Fast)</div>
+              <div class="radio-desc">Instant dictation on lower-spec hardware (~75MB download). Fully local & private.</div>
+            </div>
+          </label>
+
+          <label class="radio-card">
+            <input type="radio" name="engine" value="whisper-small" />
+            <div class="radio-body">
+              <div class="radio-title">Local Whisper Small (High Accuracy)</div>
+              <div class="radio-desc">Maximum transcription accuracy (~460MB download). Requires modern CPU/GPU.</div>
+            </div>
+          </label>
+
+          <label class="radio-card">
+            <input type="radio" name="engine" value="groq-whisper" />
+            <div class="radio-body">
+              <div class="radio-title">Groq Whisper (Cloud: whisper-large-v3-turbo)</div>
+              <div class="radio-desc">Sub-second cloud transcription. Requires Groq API Key. Audio sent to Groq.</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="form-group" id="groqGroup" style="display: none; margin-top: 16px;">
+          <label for="groqApiKey">Groq API Key</label>
+          <input type="password" id="groqApiKey" placeholder="gsk_..." class="text-input" />
+          <small class="helper-text">Your key is stored locally in %APPDATA%\LocalPill\settings.json</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-pipeline" style="display: none;">
+      <div class="section-card">
+        <h3>Text Normalization</h3>
+        <p class="desc">Deterministic formatting executed in the LocalPill text pipeline.</p>
+        
+        <label class="checkbox-row">
+          <input type="checkbox" id="spokenPunctuation" checked />
+          <span>Convert spoken punctuation (e.g. "period", "comma", "question mark")</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="fillerRemoval" checked />
+          <span>Remove filler words (um, uh, er, ah, like, you know)</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="casing" checked />
+          <span>Sentence auto-capitalization</span>
+        </label>
+      </div>
+
+      <div class="section-card" style="margin-top: 16px;">
+        <h3>Privacy & Sensitive Data Masking</h3>
+        <p class="desc">Mask sensitive tokens before text is pasted or passed to external applications.</p>
+
+        <label class="checkbox-row">
+          <input type="checkbox" id="maskSensitiveData" checked />
+          <span style="font-weight: 600;">Enable Sensitive Data Redaction</span>
+        </label>
+
+        <div style="margin-left: 24px; display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+          <label class="checkbox-row">
+            <input type="checkbox" id="maskCard" checked />
+            <span>Credit / Debit Card Numbers (Luhn validated &rarr; [CARD-MASKED])</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="maskAadhaar" checked />
+            <span>Indian Aadhaar (Verhoeff checksum validated &rarr; [AADHAAR-MASKED])</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="maskPan" checked />
+            <span>Indian PAN numbers (&rarr; [PAN-MASKED])</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="maskApiKey" checked />
+            <span>API Keys & Bearer tokens (&rarr; [KEY-MASKED])</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="maskEmail" />
+            <span>Email addresses (Optional)</span>
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="maskPhone" />
+            <span>Phone numbers (Optional)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-snippets" style="display: none;">
+      <div class="section-card">
+        <h3>Custom Voice Snippets</h3>
+        <p class="desc">Define triggers that expand into longer text snippets upon dictation.</p>
+
+        <div id="snippetList" class="snippet-list"></div>
+
+        <div class="snippet-add-row">
+          <input type="text" id="newTrigger" placeholder=":trigger" class="text-input" style="max-width: 140px;" />
+          <input type="text" id="newExpansion" placeholder="Expansion text..." class="text-input" />
+          <button id="addSnippetBtn" class="btn btn-secondary">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-general" style="display: none;">
+      <div class="section-card">
+        <h3>General Settings</h3>
+
+        <div class="form-group">
+          <label for="hotkeyInput">Global Shortcut</label>
+          <input type="text" id="hotkeyInput" value="CommandOrControl+Shift+Space" class="text-input" />
+          <small class="helper-text">Format: CommandOrControl+Shift+Space</small>
+        </div>
+
+        <div class="form-group" style="margin-top: 16px;">
+          <label>IPC Architecture</label>
+          <div class="radio-group">
+            <label class="radio-card">
+              <input type="radio" name="transport" value="graft" checked />
+              <div class="radio-body">
+                <div class="radio-title">Graftcode (Default)</div>
+                <div class="radio-desc">Cross-language RPC without hand-written REST.</div>
+              </div>
+            </label>
+            <label class="radio-card">
+              <input type="radio" name="transport" value="rest" />
+              <div class="radio-body">
+                <div class="radio-title">Legacy REST Baseline</div>
+                <div class="radio-desc">Original HTTP architecture for benchmarking comparison.</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <label class="checkbox-row" style="margin-top: 16px;">
+          <input type="checkbox" id="logTranscripts" />
+          <span>Log full transcripts to disk (Disabled by default for privacy)</span>
+        </label>
+      </div>
+    </div>
+
+    <footer class="footer">
+      <span id="saveStatus" class="save-status"></span>
+      <button id="saveBtn" class="btn btn-primary">Save Changes</button>
+    </footer>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
