@@ -85,3 +85,27 @@ def test_faster_whisper_engine_creation():
     assert eng.is_local is True
     assert eng.is_available() is True
     assert eng._device in ("cpu", "cuda")
+
+def test_speech_service_facade(tmp_path):
+    from speech_service.service import SpeechService
+    from speech_service.errors import PathNotAllowedException
+    import json
+
+    svc = SpeechService()
+    assert svc.is_ready() is True
+
+    health = svc.health()
+    assert health["ready"] is True
+    assert "whisper" in health["engine"]
+
+    health_json = svc.health_json()
+    parsed_health = json.loads(health_json)
+    assert parsed_health["ready"] is True
+
+    engines = svc.list_engines()
+    assert len(engines) >= 5
+
+    # Test MCP security boundary
+    outside_file = str(tmp_path / "secret.wav")
+    with pytest.raises(PathNotAllowedException):
+        SpeechService.TranscribeFileJson(outside_file)

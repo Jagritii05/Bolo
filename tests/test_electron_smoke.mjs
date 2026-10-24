@@ -17,7 +17,7 @@ const proc = spawn(`"${electronBin}"`, ['src/main/index.js'], {
   env: {
     ...process.env,
     TEST_SMOKE: '1',
-    TRANSPORT: 'rest',
+    TRANSPORT: 'graft',
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });

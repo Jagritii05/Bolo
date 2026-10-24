@@ -69,6 +69,49 @@ class ProcessSupervisor {
     return child;
   }
 
+  startGatewayA(wsPort = 8085, httpPort = 8086) {
+    if (this.processes.has('gateway-a')) {
+      logger.info('Gateway A already running.');
+      return;
+    }
+
+    const ggExe = path.join(PROJECT_ROOT, 'gg.exe');
+    const modulePath = path.join(PROJECT_ROOT, 'services', 'speech_gateway', 'index.js');
+
+    logger.info(`Starting Graftcode Gateway A on ws:${wsPort} http:${httpPort}...`);
+
+    const child = spawn(ggExe, [
+      '--runtime', 'nodejs',
+      '--modules', modulePath,
+      '--port', String(wsPort),
+      '--httpPort', String(httpPort)
+    ], {
+      cwd: PROJECT_ROOT,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    child.stdout.on('data', (data) => {
+      logger.info(`[Gateway A] ${data.toString().trim()}`);
+    });
+
+    child.stderr.on('data', (data) => {
+      logger.error(`[Gateway A] ${data.toString().trim()}`);
+    });
+
+    child.on('close', (code) => {
+      logger.warn(`Gateway A exited with code ${code}`);
+      this.processes.delete('gateway-a');
+    });
+
+    child.on('error', (err) => {
+      logger.error(`Gateway A process error: ${err.message}`);
+    });
+
+    this.processes.set('gateway-a', child);
+    return child;
+  }
+
   stopProcess(name) {
     const child = this.processes.get(name);
     if (!child || !child.pid) return;

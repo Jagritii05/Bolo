@@ -1,0 +1,79 @@
+import { configureGraftcode } from './adapter.js';
+import { logger } from '../logger.js';
+
+export class GraftSpeechClient {
+  constructor() {
+    this._initialized = false;
+    this._speechService = null;
+  }
+
+  async _ensureInit() {
+    if (!this._initialized) {
+      await configureGraftcode();
+      const { SpeechService } = await import('@graft/npm-speech-gateway');
+      this._speechService = SpeechService;
+      this._initialized = true;
+    }
+  }
+
+  async isReady() {
+    try {
+      await this._ensureInit();
+      const rawJson = await this._speechService.healthJson();
+      const parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+      return {
+        ready: Boolean(parsed.ready),
+        error: parsed.error || null,
+        engine: parsed.engine || 'whisper-base',
+      };
+    } catch (err) {
+      return {
+        ready: false,
+        error: `Graftcode Gateway A connection failed: ${err.message}`,
+        engine: 'unknown',
+      };
+    }
+  }
+
+  async transcribe(audioBuffer) {
+    await this._ensureInit();
+    const base64Audio = Buffer.isBuffer(audioBuffer)
+      ? audioBuffer.toString('base64')
+      : Buffer.from(audioBuffer).toString('base64');
+
+    logger.info(`Sending ${base64Audio.length} chars of base64 audio over Graftcode RPC...`);
+    const rawJson = await this._speechService.transcribeBytesJson(base64Audio, '');
+    const result = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+
+    if (result.error && !result.text) {
+      throw new Error(`Graftcode transcription error: ${result.error}`);
+    }
+
+    return {
+      text: result.text || '',
+      language: result.language || 'en',
+      duration: result.duration || 0,
+      words: result.words || [],
+    };
+  }
+
+  async listEngines() {
+    try {
+      await this._ensureInit();
+      const rawJson = await this._speechService.listEnginesJson();
+      const parsed = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && Array.isArray(parsed.engines)) return parsed.engines;
+      return [];
+    } catch (err) {
+      logger.error(`Graftcode listEngines failed: ${err.message}`);
+      return [];
+    }
+  }
+
+  async setEngine(engineId) {
+    await this._ensureInit();
+    const success = await this._speechService.switchEngine(engineId);
+    return { success, active: engineId };
+  }
+}

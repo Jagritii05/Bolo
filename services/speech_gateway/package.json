@@ -1,0 +1,6 @@
+{
+  "name": "speech-gateway",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js"
+}

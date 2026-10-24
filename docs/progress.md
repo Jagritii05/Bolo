@@ -16,8 +16,15 @@
   - Global hotkey `Ctrl+Shift+Space` (CommandOrControl+Shift+Space)
   - Background process supervisor with Windows tree termination (`taskkill /pid <PID> /T /F`)
   - One-command setup (`scripts/setup.ps1`) and `.env.example`
-  - Automated tests passing: pytest 7/7 passed, REST baseline server test passed, Electron smoke test passed
-- [ ] Phase 2: Speech service as Graftcode module
+  - Automated tests passing: pytest 8/8 passed, REST baseline server test passed, Electron smoke test passed
+- [x] Phase 2: Speech service as Graftcode module
+  - Implemented `SpeechService` facade in `services/speech_gateway/index.js`
+  - Hosted on Gateway A via `gg.exe` on ports 8085 (WS) and 8086 (HTTP/Vision/MCP)
+  - Generated and installed client `@graft/npm-speech-gateway`
+  - Implemented `src/main/graft/adapter.js` and `src/main/graft/graft-speech-client.js`
+  - Integrated dual transport switch in `src/main/speech-client.js` (`TRANSPORT=graft` vs `TRANSPORT=rest`)
+  - Verified full parity between REST baseline and Graftcode RPC in automated test `tests/test_graft_speech_e2e.mjs`
+  - Verified path restriction security (`PathNotAllowedException`) across Graftcode wire
 - [ ] Phase 3: Text pipeline service (.NET / Gateway B)
 - [ ] Phase 4: Reliability and error UX
 - [ ] Phase 5: Engine swap and Settings
