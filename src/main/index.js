@@ -101,10 +101,11 @@ app.whenReady().then(() => {
   // 1. Start Python backend server
   supervisor.startRestServer(7777);
 
-  // 2. Start Graftcode Gateway A if transport is graft
+  // 2. Start Graftcode Gateways if transport is graft
   const transport = process.env.TRANSPORT || settingsStore.get('transport') || 'graft';
   if (transport === 'graft') {
     supervisor.startGatewayA(8085, 8086);
+    supervisor.startGatewayB(8095, 8096);
   }
 
   // 2. Setup IPC

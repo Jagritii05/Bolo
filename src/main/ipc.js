@@ -28,7 +28,7 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
 
       // Run through text pipeline
       const textClient = getTextClient();
-      const cleanText = textClient.process(rawResult.text);
+      const cleanText = await textClient.process(rawResult.text);
       logger.logTranscript(cleanText);
 
       // Auto paste into active window

@@ -25,7 +25,17 @@
   - Integrated dual transport switch in `src/main/speech-client.js` (`TRANSPORT=graft` vs `TRANSPORT=rest`)
   - Verified full parity between REST baseline and Graftcode RPC in automated test `tests/test_graft_speech_e2e.mjs`
   - Verified path restriction security (`PathNotAllowedException`) across Graftcode wire
-- [ ] Phase 3: Text pipeline service (.NET / Gateway B)
+- [x] Phase 3: Text pipeline service (Gateway B)
+  - Deterministic text pipeline with zero non-local dependencies
+  - Luhn checksum validator for credit/debit cards (`services/text/luhn.js`)
+  - Verhoeff dihedral D_5 algorithm for Indian 12-digit Aadhaar numbers (`services/text/verhoeff.js`)
+  - Sensitive data masking: Luhn card numbers (`[CARD-MASKED]`), Verhoeff Aadhaar (`[AADHAAR-MASKED]`), Indian PAN (`[PAN-MASKED]`), API keys / Bearer tokens (`[KEY-MASKED]`), optional email and phone numbers (`services/text/masking.js`)
+  - Spoken punctuation normalization, adjacent filler word removal, sentence auto-casing, snippet expansion with longest-prefix priority (`services/text/normalization.js`)
+  - Hosted on Gateway B (`services/text_gateway/index.js`) using `gg.exe` on ports 8095 (WS) and 8096 (HTTP/MCP)
+  - Generated and installed `@graft/npm-text-gateway`
+  - Implemented `src/main/graft/graft-text-client.js` and integrated dual-transport `src/main/text-client.js`
+  - Updated supervisor and IPC pipeline in Electron main process
+  - Verified with 23 automated pipeline tests (`tests/test_text_pipeline.mjs`) and multi-gateway E2E test (`tests/test_phase3_e2e.mjs`)
 - [ ] Phase 4: Reliability and error UX
 - [ ] Phase 5: Engine swap and Settings
 - [ ] Phase 6: MCP

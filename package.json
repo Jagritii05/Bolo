@@ -8,7 +8,8 @@
     "start": "electron src/main/index.js",
     "start:rest": "set TRANSPORT=rest&& electron src/main/index.js",
     "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
-    "test": "npm run test:speech",
+    "test": "node tests/test_text_pipeline.mjs && npm run test:speech",
+    "test:text": "node tests/test_text_pipeline.mjs",
     "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests"
   },
   "devDependencies": {
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@graft/npm-speech-gateway": "^1.0.0",
+    "@graft/npm-text-gateway": "^1.0.0",
     "ffmpeg-static": "^5.3.0"
   }
 }
