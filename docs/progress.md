@@ -71,5 +71,25 @@
   - Real-Time Factor (RTF) & memory engine benchmark (`bench/rtf.py`) measuring `whisper-tiny` (RTF 0.439, 2.3x real-time at 214 MB RAM) and `whisper-base` (RTF 0.834-0.985 at 280 MB RAM)
   - One-command unified runner (`scripts/bench.ps1` / `npm run bench`) regenerating all benchmarks, updating `bench/results/results.json`, and rendering `docs/benchmark.md`
   - Privacy verification report (`docs/privacy-check.md`) confirming zero external audio egress during local Whisper operation, disclosing `gg.exe` startup UGM upload (`grft.dev`) and Application Insights telemetry, and detailing `0.0.0.0` binding caveats and Windows Firewall guidance
-- [ ] Phase 8: Polish and docs
-
+- [x] Phase 8: Polish and docs
+  - Root `README.md` completely rewritten:
+    - Clear 2-sentence executive summary of LocalPill
+    - Clean ASCII architecture diagram comparing legacy REST baseline vs Graftcode dual-gateway RPC
+    - 2-command Windows setup (`powershell -ExecutionPolicy Bypass -File scripts\setup.ps1` and `npm start`)
+    - Dual transport toggle documentation (`TRANSPORT=graft` vs `TRANSPORT=rest`)
+    - Empirical benchmark summary table (LOC, p50/p95/p99 latency, RTF, memory peak) linked to `docs/benchmark.md`
+    - Video demonstration scenario outline linked to `docs/demo-script.md`
+    - Prominent Impact Programme disclosure: *"Part of the Graftcode Impact Programme; I may receive a reward from Graftcode S.A."*
+    - MIT license reference
+  - Complete 100-second screen-recording demonstration script in `docs/demo-script.md` (exact timeline, beats, narration, on-screen actions, test fixtures)
+  - Comprehensive Windows engineering guide in `docs/windows-notes.md` covering:
+    - Process tree termination (`taskkill /pid <PID> /T /F` vs `process.kill()`)
+    - Global hotkeys on Windows (`RegisterHotKey`, `CommandOrControl` modifier translation, conflict handling)
+    - Audio capture on Windows (Web Audio / WASAPI subsystem vs Sox / PyAudio)
+    - Paste injection (`WScript.Shell SendKeys` vs `SendInput`, Win32 TokenElevation and UIPI elevation boundaries)
+    - CTranslate2 CUDA auto-detection with pre-flight DLL probe (`cublas64_12.dll`) preventing unhandled crashes
+    - NTFS Directory Junction and symlink path traversal defense (`fs.realpathSync`)
+    - Network interface binding (`0.0.0.0`) in `gg.exe` and recommended Windows Firewall lockdown rule
+    - PyAV 14+ / 19 audio demuxing patch & standard WAV loader
+  - Root `LICENSE` file with standard MIT terms (2026)
+  - All test suites verified and passing cleanly
