@@ -65,6 +65,11 @@
   - Settings UI MCP tab: copyable JSON configuration blocks for Claude Desktop and Google Antigravity, allowed folder path display, "Open Folder" explorer integration, and copy-path buttons
   - Comprehensive documentation in `docs/mcp.md` detailing tool specs, security boundary, client configs, and demo walk-through
   - Verified with 5/5 automated tests in `tests/test_phase6_mcp.mjs` (`npm run test:mcp`)
-- [ ] Phase 7: Benchmark and privacy check
+- [x] Phase 7: Benchmark and privacy check
+  - LOC benchmark harness (`bench/loc.ps1` and `bench/integration-paths.yml`) measuring hand-written REST plumbing (287 LOC) vs. Graftcode adapter, error state machine, and facade (432 LOC)
+  - Per-call latency benchmark (`bench/latency.js`) comparing REST vs. Graftcode over N=200 health check pings and N=20 1.0s audio transcriptions
+  - Real-Time Factor (RTF) & memory engine benchmark (`bench/rtf.py`) measuring `whisper-tiny` (RTF 0.439, 2.3x real-time at 214 MB RAM) and `whisper-base` (RTF 0.834-0.985 at 280 MB RAM)
+  - One-command unified runner (`scripts/bench.ps1` / `npm run bench`) regenerating all benchmarks, updating `bench/results/results.json`, and rendering `docs/benchmark.md`
+  - Privacy verification report (`docs/privacy-check.md`) confirming zero external audio egress during local Whisper operation, disclosing `gg.exe` startup UGM upload (`grft.dev`) and Application Insights telemetry, and detailing `0.0.0.0` binding caveats and Windows Firewall guidance
 - [ ] Phase 8: Polish and docs
 

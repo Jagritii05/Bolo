@@ -1,0 +1,186 @@
+﻿{
+    "timestamp":  "2026-10-27T01:47:10.3704689+05:30",
+    "machine":  {
+                    "os":  "Windows_NT 10.0.26200 (x64)",
+                    "cpuModel":  "12th Gen Intel(R) Core(TM) i5-12450HX",
+                    "cores":  12,
+                    "ramGb":  15.7,
+                    "nodeVersion":  "v22.14.0",
+                    "date":  "2026-10-26T20:11:07.923Z"
+                },
+    "loc":  {
+                "rest":  {
+                             "files":  [
+                                           {
+                                               "File":  "legacy-rest/asr_server_rest.py",
+                                               "Total":  181,
+                                               "Code":  156,
+                                               "Comment":  8,
+                                               "Blank":  17
+                                           },
+                                           {
+                                               "File":  "src/main/rest/rest-speech-client.js",
+                                               "Total":  138,
+                                               "Code":  131,
+                                               "Comment":  0,
+                                               "Blank":  7
+                                           }
+                                       ],
+                             "totalCodeLoc":  287
+                         },
+                "graft":  {
+                              "files":  [
+                                            {
+                                                "File":  "services/speech_gateway/index.js",
+                                                "Total":  151,
+                                                "Code":  124,
+                                                "Comment":  10,
+                                                "Blank":  17
+                                            },
+                                            {
+                                                "File":  "src/main/graft/adapter.js",
+                                                "Total":  274,
+                                                "Code":  224,
+                                                "Comment":  26,
+                                                "Blank":  24
+                                            },
+                                            {
+                                                "File":  "src/main/graft/graft-speech-client.js",
+                                                "Total":  96,
+                                                "Code":  84,
+                                                "Comment":  0,
+                                                "Blank":  12
+                                            }
+                                        ],
+                              "totalCodeLoc":  432
+                          },
+                "comparison":  {
+                                   "restLoc":  287,
+                                   "graftLoc":  432,
+                                   "delta":  -145,
+                                   "reductionPct":  -50.5
+                               }
+            },
+    "latency":  {
+                    "machine":  {
+                                    "os":  "Windows_NT 10.0.26200 (x64)",
+                                    "cpuModel":  "12th Gen Intel(R) Core(TM) i5-12450HX",
+                                    "cores":  12,
+                                    "ramGb":  15.7,
+                                    "nodeVersion":  "v22.14.0",
+                                    "date":  "2026-10-26T20:11:07.923Z"
+                                },
+                    "healthCheck":  {
+                                        "warmup":  20,
+                                        "iterations":  200,
+                                        "rest":  {
+                                                     "min":  1.47,
+                                                     "p50":  2.25,
+                                                     "p90":  3.02,
+                                                     "p95":  3.25,
+                                                     "p99":  4.15,
+                                                     "max":  4.53,
+                                                     "avg":  2.32,
+                                                     "count":  200
+                                                 },
+                                        "graftcode":  {
+                                                          "min":  33.83,
+                                                          "p50":  41.24,
+                                                          "p90":  57.99,
+                                                          "p95":  62.73,
+                                                          "p99":  80.35,
+                                                          "max":  108.92,
+                                                          "avg":  43.99,
+                                                          "count":  200
+                                                      }
+                                    },
+                    "transcription":  {
+                                          "audioDurationSec":  1,
+                                          "warmup":  3,
+                                          "iterations":  20,
+                                          "rest":  {
+                                                       "min":  2542.51,
+                                                       "p50":  3353.73,
+                                                       "p90":  3856.82,
+                                                       "p95":  3939.87,
+                                                       "p99":  3939.87,
+                                                       "max":  3939.87,
+                                                       "avg":  3301.1,
+                                                       "count":  20
+                                                   },
+                                          "graftcode":  {
+                                                            "min":  2655.36,
+                                                            "p50":  3365.73,
+                                                            "p90":  3748.25,
+                                                            "p95":  3767.13,
+                                                            "p99":  3767.13,
+                                                            "max":  3767.13,
+                                                            "avg":  3259.21,
+                                                            "count":  20
+                                                        }
+                                      }
+                },
+    "engines":  {
+                    "value":  [
+                                  {
+                                      "engineId":  "whisper-tiny",
+                                      "label":  "Local Whisper (tiny)",
+                                      "device":  "cpu",
+                                      "computeType":  "int8",
+                                      "loadTimeMs":  1004.5,
+                                      "memoryMb":  {
+                                                       "initial":  77.1,
+                                                       "loaded":  191.2,
+                                                       "peak":  214.1,
+                                                       "delta":  137.0
+                                                   },
+                                      "samples":  [
+                                                      {
+                                                          "sample":  "1.0s utterance",
+                                                          "durationSec":  1.0,
+                                                          "avgInferenceMs":  439.4,
+                                                          "rtf":  0.439,
+                                                          "realTimeFasterThanAudio":  2.3
+                                                      },
+                                                      {
+                                                          "sample":  "3.0s utterance",
+                                                          "durationSec":  3.0,
+                                                          "avgInferenceMs":  1434.9,
+                                                          "rtf":  0.478,
+                                                          "realTimeFasterThanAudio":  2.1
+                                                      }
+                                                  ]
+                                  },
+                                  {
+                                      "engineId":  "whisper-base",
+                                      "label":  "Local Whisper (base)",
+                                      "device":  "cpu",
+                                      "computeType":  "int8",
+                                      "loadTimeMs":  1233.2,
+                                      "memoryMb":  {
+                                                       "initial":  140.2,
+                                                       "loaded":  265.6,
+                                                       "peak":  280.7,
+                                                       "delta":  140.5
+                                                   },
+                                      "samples":  [
+                                                      {
+                                                          "sample":  "1.0s utterance",
+                                                          "durationSec":  1.0,
+                                                          "avgInferenceMs":  2899.5,
+                                                          "rtf":  2.899,
+                                                          "realTimeFasterThanAudio":  0.3
+                                                      },
+                                                      {
+                                                          "sample":  "3.0s utterance",
+                                                          "durationSec":  3.0,
+                                                          "avgInferenceMs":  2954.5,
+                                                          "rtf":  0.985,
+                                                          "realTimeFasterThanAudio":  1.0
+                                                      }
+                                                  ]
+                                  }
+                              ],
+                    "Count":  2
+                }
+}

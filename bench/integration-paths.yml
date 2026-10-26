@@ -1,0 +1,15 @@
+# LocalPill: Integration Code Paths for Benchmark
+# Defines files measured in LOC comparison between hand-written REST and Graftcode RPC
+
+rest:
+  description: "Hand-written HTTP REST server, client, routing, and error mapping"
+  files:
+    - "legacy-rest/asr_server_rest.py"
+    - "src/main/rest/rest-speech-client.js"
+
+graftcode:
+  description: "Graftcode Gateway facade, adapter, error translator, and typed client wrapper"
+  files:
+    - "services/speech_gateway/index.js"
+    - "src/main/graft/adapter.js"
+    - "src/main/graft/graft-speech-client.js"

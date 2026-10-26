@@ -14,7 +14,8 @@
     "test:engines": "node tests/test_phase5_engines.mjs",
     "test:mcp": "node tests/test_phase6_mcp.mjs",
     "test:chaos": "powershell -ExecutionPolicy Bypass -File scripts/chaos.ps1",
-    "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests"
+    "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests",
+    "bench": "powershell -ExecutionPolicy Bypass -File scripts/bench.ps1"
   },
   "devDependencies": {
     "electron": "^28.3.3"
