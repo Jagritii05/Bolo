@@ -10,6 +10,7 @@ import sys
 import tempfile
 import threading
 import json
+import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # Add root directory to sys.path so speech_service can be imported
@@ -21,17 +22,26 @@ from speech_service.errors import ModelNotReadyException
 
 model_ready = False
 model_error = None
+last_load_ms = 0
+last_device = "cpu"
+last_compute_type = "int8"
 
 def load_engine():
-    global model_ready, model_error
+    global model_ready, model_error, last_load_ms, last_device, last_compute_type
     try:
         engine = registry.get_engine()
         print(f"[ASR-REST] Loading active engine: {engine.id} ({engine.label})...", flush=True)
+        t0 = time.time()
         engine.load()
+        last_load_ms = round((time.time() - t0) * 1000)
+        last_device = getattr(engine, "_device", "cloud" if not engine.is_local else "cpu")
+        last_compute_type = getattr(engine, "_compute_type", "n/a")
         model_ready = True
-        print(f"[ASR-REST] Engine {engine.id} ready [OK]", flush=True)
+        model_error = None
+        print(f"[ASR-REST] Engine {engine.id} ready in {last_load_ms}ms on {last_device} ({last_compute_type}) [OK]", flush=True)
     except Exception as e:
         model_error = str(e)
+        model_ready = False
         print(f"[ASR-REST] ERROR loading engine: {e}", flush=True)
 
 class ASRRestHandler(BaseHTTPRequestHandler):
@@ -62,17 +72,23 @@ class ASRRestHandler(BaseHTTPRequestHandler):
             self._send_json(200, {
                 "ready": model_ready,
                 "error": model_error,
-                "engine": registry.active_engine_id
+                "engine": registry.active_engine_id,
+                "load_ms": last_load_ms,
+                "device": last_device,
+                "compute_type": last_compute_type,
             })
         elif self.path == "/engines":
             self._send_json(200, {
                 "engines": registry.list_engines(),
-                "active": registry.active_engine_id
+                "active": registry.active_engine_id,
+                "device": last_device,
+                "load_ms": last_load_ms,
             })
         else:
             self._send_json(404, {"error": "Not found"})
 
     def do_POST(self):
+        global model_ready, model_error, last_load_ms, last_device, last_compute_type
         if self.path == "/transcribe":
             if not model_ready:
                 self._send_json(503, {
@@ -123,10 +139,26 @@ class ASRRestHandler(BaseHTTPRequestHandler):
             try:
                 body = json.loads(self.rfile.read(content_length).decode("utf-8"))
                 new_id = body.get("engine_id")
+                print(f"[ASR-REST] Switching engine to: {new_id}...", flush=True)
+                t0 = time.time()
                 engine = registry.set_active_engine(new_id)
                 engine.load()
-                self._send_json(200, {"success": True, "active": new_id})
+                last_load_ms = round((time.time() - t0) * 1000)
+                last_device = getattr(engine, "_device", "cloud" if not engine.is_local else "cpu")
+                last_compute_type = getattr(engine, "_compute_type", "n/a")
+                model_ready = True
+                model_error = None
+                print(f"[ASR-REST] Switched to {new_id} in {last_load_ms}ms on {last_device} [OK]", flush=True)
+                self._send_json(200, {
+                    "success": True,
+                    "active": new_id,
+                    "load_ms": last_load_ms,
+                    "device": last_device,
+                    "compute_type": last_compute_type,
+                })
             except Exception as e:
+                model_error = str(e)
+                print(f"[ASR-REST] Error switching engine to {new_id}: {e}", flush=True)
                 self._send_json(400, {"error": str(e)})
         else:
             self._send_json(404, {"error": "Not found"})

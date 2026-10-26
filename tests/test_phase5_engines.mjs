@@ -1,0 +1,111 @@
+import assert from 'assert/strict';
+import { RestSpeechClient } from '../src/main/rest/rest-speech-client.js';
+import { GraftSpeechClient } from '../src/main/graft/graft-speech-client.js';
+import { ProcessSupervisor } from '../src/main/supervisor.js';
+
+let totalTests = 0;
+let passedTests = 0;
+
+async function asyncTest(name, fn) {
+  totalTests++;
+  try {
+    await fn();
+    console.log(`[PASS] ${name}`);
+    passedTests++;
+  } catch (err) {
+    console.error(`[FAIL] ${name}: ${err.message}`);
+    throw err;
+  }
+}
+
+console.log('====================================================');
+console.log(' LocalPill Phase 5 Dynamic Engine Swap Tests');
+console.log('====================================================\n');
+
+const supervisor = new ProcessSupervisor();
+
+try {
+  // 1. Ensure Python STT server and Gateway A are running
+  supervisor.startRestServer(7777);
+  supervisor.startGatewayA(8085, 8086);
+
+  console.log('Waiting for STT and Gateway A services to be ready...');
+  const readySTT = await supervisor.waitForReady('rest-server', 25000);
+  assert.equal(readySTT, true, 'STT server should be ready on 7777');
+  const readyA = await supervisor.waitForReady('gateway-a', 25000);
+  assert.equal(readyA, true, 'Gateway A should be ready on 8085');
+
+  const restClient = new RestSpeechClient(7777);
+  const graftClient = new GraftSpeechClient();
+
+  // ─────────────────────────────────────────────────────────
+  // 1. List Engines Verification
+  // ─────────────────────────────────────────────────────────
+  await asyncTest('RestSpeechClient lists available engines with correct metadata', async () => {
+    const engines = await restClient.listEngines();
+    assert.ok(Array.isArray(engines), 'Engines should be an array');
+    assert.ok(engines.length >= 4, 'Should list at least 4 engines');
+
+    const tiny = engines.find((e) => e.id === 'whisper-tiny');
+    const base = engines.find((e) => e.id === 'whisper-base');
+    const small = engines.find((e) => e.id === 'whisper-small');
+    const groq = engines.find((e) => e.id === 'groq-whisper');
+    const mlx = engines.find((e) => e.id === 'mlx-granite');
+
+    assert.ok(tiny && tiny.is_local, 'whisper-tiny should be local');
+    assert.ok(base && base.is_local, 'whisper-base should be local');
+    assert.ok(small && small.is_local, 'whisper-small should be local');
+    assert.ok(groq && !groq.is_local, 'groq-whisper should be cloud (is_local: false)');
+    assert.ok(mlx && !mlx.is_available, 'mlx-granite should be unavailable on Windows');
+  });
+
+  await asyncTest('GraftSpeechClient lists available engines over Graftcode RPC', async () => {
+    const engines = await graftClient.listEngines();
+    assert.ok(Array.isArray(engines), 'Engines should be an array');
+    assert.ok(engines.length >= 4, 'Should list at least 4 engines');
+
+    const base = engines.find((e) => e.id === 'whisper-base');
+    assert.ok(base, 'whisper-base should exist in Graftcode engine list');
+    assert.ok(base.device === 'cpu' || base.device === 'cuda', 'Device should be auto-detected');
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // 2. Dynamic Engine Swapping: whisper-base <-> whisper-tiny
+  // ─────────────────────────────────────────────────────────
+  await asyncTest('Dynamic swap to whisper-tiny via RestSpeechClient', async () => {
+    const res = await restClient.setEngine('whisper-tiny');
+    assert.ok(res.success, 'Engine swap to whisper-tiny should succeed');
+    assert.equal(res.active, 'whisper-tiny');
+
+    const health = await restClient.isReady();
+    assert.equal(health.engine, 'whisper-tiny');
+  });
+
+  await asyncTest('Dynamic swap back to whisper-base via GraftSpeechClient', async () => {
+    const res = await graftClient.setEngine('whisper-base');
+    assert.ok(res.success, 'Engine swap to whisper-base should succeed');
+    assert.equal(res.active, 'whisper-base');
+
+    const health = await graftClient.isReady();
+    assert.equal(health.engine, 'whisper-base');
+  });
+
+  // ─────────────────────────────────────────────────────────
+  // 3. Engine unavailable validation
+  // ─────────────────────────────────────────────────────────
+  await asyncTest('Requesting invalid or unavailable engine raises error', async () => {
+    try {
+      await restClient.setEngine('mlx-granite');
+      assert.fail('Should have thrown error for unavailable engine mlx-granite');
+    } catch (err) {
+      assert.ok(err.message.includes('not available') || err.message.includes('HTTP 400'));
+    }
+  });
+
+} finally {
+  supervisor.stopAll();
+}
+
+console.log('\n====================================================');
+console.log(` All Phase 5 Engine Swap Tests Passed! (${passedTests}/${totalTests})`);
+console.log('====================================================\n');

@@ -35,8 +35,8 @@ Write-Host "[3/5] Installing Python dependencies (faster-whisper, PyAV, requests
 $ReqFile = Join-Path $RootDir "services\speech\requirements.txt"
 & $VenvPython -m pip install -r $ReqFile --quiet
 
-# 4. Pre-download whisper-base model
-Write-Host "[4/5] Pre-downloading Whisper base model..." -ForegroundColor Yellow
+# 4. Pre-download whisper models (base & tiny)
+Write-Host "[4/5] Pre-downloading Whisper models (base & tiny)..." -ForegroundColor Yellow
 $DownloadScript = @"
 import os
 from faster_whisper import WhisperModel
@@ -44,9 +44,11 @@ user_profile = os.environ.get('USERPROFILE', os.path.expanduser('~'))
 app_data = os.environ.get('APPDATA', os.path.join(user_profile, 'AppData', 'Roaming'))
 models_dir = os.path.join(app_data, 'LocalPill', 'models')
 os.makedirs(models_dir, exist_ok=True)
-print('Checking whisper-base in ' + models_dir + '...')
+print('Pre-caching whisper-base in ' + models_dir + '...')
 WhisperModel('base', device='cpu', compute_type='int8', download_root=models_dir)
-print('Model ready.')
+print('Pre-caching whisper-tiny in ' + models_dir + '...')
+WhisperModel('tiny', device='cpu', compute_type='int8', download_root=models_dir)
+print('Whisper models ready.')
 "@
 
 & $VenvPython -c $DownloadScript

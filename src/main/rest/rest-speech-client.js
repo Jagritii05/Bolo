@@ -113,13 +113,18 @@ export class RestSpeechClient {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(body),
         },
-        timeout: 10000,
+        timeout: 60000,
       }, (res) => {
         let data = '';
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => {
           try {
-            resolve(JSON.parse(data));
+            const parsed = JSON.parse(data);
+            if (res.statusCode >= 400 || parsed.error) {
+              reject(new Error(parsed.error || `HTTP ${res.statusCode}`));
+            } else {
+              resolve(parsed);
+            }
           } catch (e) {
             reject(e);
           }

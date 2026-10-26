@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('localPill', {
   openMicSettings: () => ipcRenderer.send('pill:open-mic-settings'),
   pasteText: (text) => ipcRenderer.send('pill:paste', text),
 
+  listEngines: () => ipcRenderer.invoke('speech:list-engines'),
+  setEngine: (id) => ipcRenderer.invoke('speech:set-engine', id),
+
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get-all'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),

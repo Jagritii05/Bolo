@@ -39,7 +39,7 @@ export class SpeechService {
       execFileSync(
         'curl.exe',
         ['-s', '-X', 'POST', `${ASR_BASE}/engine`, '-H', 'Content-Type: application/json', '-d', body],
-        { timeout: 10000, windowsHide: true }
+        { timeout: 60000, windowsHide: true }
       );
       return true;
     } catch (_) {

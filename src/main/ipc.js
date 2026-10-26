@@ -157,15 +157,68 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
     if (openSettingsWindow) openSettingsWindow();
   });
 
+  // Speech engines list & switch
+  ipcMain.handle('speech:list-engines', async () => {
+    try {
+      const client = getSpeechClient();
+      return await client.listEngines();
+    } catch (err) {
+      logger.error(`Failed to list speech engines: ${err.message}`);
+      return [];
+    }
+  });
+
+  ipcMain.handle('speech:set-engine', async (_event, engineId) => {
+    try {
+      logger.info(`Live switching speech engine to: ${engineId}...`);
+      const client = getSpeechClient();
+      const res = await client.setEngine(engineId);
+      settingsStore.set('engine', engineId);
+
+      const pill = getPillWindow();
+      if (pill) {
+        pill.webContents.send('engine:changed', engineId);
+      }
+
+      return { success: true, active: engineId, ...res };
+    } catch (err) {
+      logger.error(`Live engine switch failed: ${err.message}`);
+      return { success: false, error: err.message };
+    }
+  });
+
   // Settings get/set
   ipcMain.handle('settings:get-all', () => {
     return settingsStore.getAll();
   });
 
-  ipcMain.handle('settings:save', (_event, newSettings) => {
+  ipcMain.handle('settings:save', async (_event, newSettings) => {
+    const oldEngine = settingsStore.get('engine');
+
     for (const [k, v] of Object.entries(newSettings)) {
       settingsStore.set(k, v);
     }
+
+    if (newSettings.groqApiKey) {
+      process.env.GROQ_API_KEY = newSettings.groqApiKey;
+    }
+
+    // If active engine changed, trigger live swap!
+    if (newSettings.engine && newSettings.engine !== oldEngine) {
+      try {
+        logger.info(`Settings updated engine from ${oldEngine} to ${newSettings.engine}. Triggering live switch...`);
+        const client = getSpeechClient();
+        await client.setEngine(newSettings.engine);
+
+        const pill = getPillWindow();
+        if (pill) {
+          pill.webContents.send('engine:changed', newSettings.engine);
+        }
+      } catch (err) {
+        logger.error(`Engine live swap warning on save: ${err.message}`);
+      }
+    }
+
     return settingsStore.getAll();
   });
 }

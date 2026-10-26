@@ -48,7 +48,13 @@
   - Temp-file cleaner: `src/main/temp-cleaner.js` sweeping orphaned audio files on startup and shutdown
   - Chaos test harness: `scripts/chaos.ps1` empirically verifying mid-session killing of Gateway A, Gateway B, and Python STT with automatic recovery
   - Verified with 16 automated reliability unit & integration tests (`tests/test_phase4_reliability.mjs`) and manual checklist (`tests/MANUAL_QA.md`)
-- [ ] Phase 5: Engine swap and Settings
+- [x] Phase 5: Engine swap and Settings
+  - Dynamic `SetEngine` and live switching between local Whisper engines (`whisper-base`, `whisper-tiny`, `whisper-small`) and cloud (`groq-whisper`)
+  - Auto-detection of hardware acceleration (CTranslate2 CUDA float16 with fallback to CPU int8 upon missing CUDA toolkit DLLs)
+  - Telemetry & timing: load latency (`load_ms`), active compute type, and device info tracked and rendered in Settings UI
+  - Privacy disclosure & badges: `groq-whisper` tagged with prominent `Audio leaves device` warning badge and network privacy disclosure
+  - Pre-caching scripts: `scripts/setup.ps1` downloads both `base` and `tiny` models for zero first-use delay
+  - Full parity across transports: verified live swap on both `RestSpeechClient` and `GraftSpeechClient` in automated test `tests/test_phase5_engines.mjs`
 - [ ] Phase 6: MCP
 - [ ] Phase 7: Benchmark and privacy check
 - [ ] Phase 8: Polish and docs

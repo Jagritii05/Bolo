@@ -28,6 +28,9 @@ class EngineRegistry:
                 "is_local": eng.is_local,
                 "is_available": eng.is_available(),
                 "is_active": (eng_id == self._active_id),
+                "is_downloaded": getattr(eng, "is_downloaded", lambda: True)(),
+                "device": getattr(eng, "_device", "cloud" if not eng.is_local else "cpu"),
+                "compute_type": getattr(eng, "_compute_type", "n/a"),
             })
         return result
 

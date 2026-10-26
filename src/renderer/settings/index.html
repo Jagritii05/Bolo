@@ -29,6 +29,21 @@
       <div class="section-card">
         <h3>Active Transcription Engine</h3>
         <p class="desc">Select local on-device Whisper model or opt-in cloud API.</p>
+
+        <div class="telemetry-card">
+          <div class="telemetry-item">
+            <span class="telemetry-label">Active Engine</span>
+            <span class="telemetry-value" id="telemetryActive">whisper-base</span>
+          </div>
+          <div class="telemetry-item">
+            <span class="telemetry-label">Hardware Device</span>
+            <span class="telemetry-value" id="telemetryDevice">CPU (int8)</span>
+          </div>
+          <div class="telemetry-item">
+            <span class="telemetry-label">Model Load Time</span>
+            <span class="telemetry-value" id="telemetryLoadTime">--</span>
+          </div>
+        </div>
         
         <div class="radio-group">
           <label class="radio-card">
@@ -58,7 +73,10 @@
           <label class="radio-card">
             <input type="radio" name="engine" value="groq-whisper" />
             <div class="radio-body">
-              <div class="radio-title">Groq Whisper (Cloud: whisper-large-v3-turbo)</div>
+              <div class="radio-title">
+                Groq Whisper (Cloud: whisper-large-v3-turbo)
+                <span class="badge-warning">&#9888; Audio leaves device</span>
+              </div>
               <div class="radio-desc">Sub-second cloud transcription. Requires Groq API Key. Audio sent to Groq.</div>
             </div>
           </label>
@@ -68,6 +86,9 @@
           <label for="groqApiKey">Groq API Key</label>
           <input type="password" id="groqApiKey" placeholder="gsk_..." class="text-input" />
           <small class="helper-text">Your key is stored locally in %APPDATA%\LocalPill\settings.json</small>
+          <div class="cloud-disclosure">
+            &#9888; <strong>Privacy Notice:</strong> Audio transcribed with Groq leaves this machine and is processed on Groq's cloud servers. Do not use for confidential speech.
+          </div>
         </div>
       </div>
     </div>

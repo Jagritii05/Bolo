@@ -42,8 +42,11 @@ class FasterWhisperEngine(SpeechEngine):
     def _detect_hardware(self) -> None:
         try:
             import ctranslate2
+            import ctypes
             cuda_count = ctranslate2.get_cuda_device_count()
             if cuda_count > 0:
+                # Ensure CUDA DLLs are present before selecting CUDA device
+                ctypes.CDLL("cublas64_12.dll")
                 self._device = "cuda"
                 self._compute_type = "float16"
                 return

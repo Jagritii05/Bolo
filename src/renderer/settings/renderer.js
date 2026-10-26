@@ -77,6 +77,7 @@ document.getElementById('addSnippetBtn').addEventListener('click', () => {
 });
 
 // Load settings
+// Load settings & telemetry
 async function loadSettings() {
   if (!api || !api.getSettings) return;
 
@@ -114,9 +115,26 @@ async function loadSettings() {
   const transportRadio = document.querySelector(`input[name="transport"][value="${s.transport || 'graft'}"]`);
   if (transportRadio) transportRadio.checked = true;
   document.getElementById('logTranscripts').checked = Boolean(s.logTranscripts);
+
+  // Update telemetry
+  const activeEngineEl = document.getElementById('telemetryActive');
+  const deviceEl = document.getElementById('telemetryDevice');
+  const loadTimeEl = document.getElementById('telemetryLoadTime');
+
+  if (activeEngineEl) activeEngineEl.textContent = s.engine || 'whisper-base';
+
+  try {
+    if (api.listEngines) {
+      const engines = await api.listEngines();
+      const activeObj = engines.find((e) => e.is_active || e.id === s.engine);
+      if (activeObj) {
+        if (deviceEl) deviceEl.textContent = `${activeObj.device.toUpperCase()} (${activeObj.compute_type})`;
+      }
+    }
+  } catch (_) {}
 }
 
-// Save settings
+// Save settings & live engine swap
 document.getElementById('saveBtn').addEventListener('click', async () => {
   const selectedEngine = document.querySelector('input[name="engine"]:checked')?.value || 'whisper-base';
   const selectedTransport = document.querySelector('input[name="transport"]:checked')?.value || 'graft';
@@ -143,9 +161,35 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   };
 
   const statusEl = document.getElementById('saveStatus');
+  const loadTimeEl = document.getElementById('telemetryLoadTime');
+  const activeEngineEl = document.getElementById('telemetryActive');
+  const deviceEl = document.getElementById('telemetryDevice');
+
   try {
+    statusEl.textContent = 'Saving & configuring engine…';
+    statusEl.style.color = '#818cf8';
+    if (loadTimeEl) loadTimeEl.textContent = 'Loading…';
+
+    const t0 = Date.now();
     await api.saveSettings(newSettings);
+    const elapsed = Date.now() - t0;
+
+    if (activeEngineEl) activeEngineEl.textContent = selectedEngine;
+    if (loadTimeEl) loadTimeEl.textContent = `${elapsed} ms`;
     statusEl.textContent = 'Settings saved successfully!';
+    statusEl.style.color = '#10b981';
+
+    // Refresh telemetry
+    try {
+      if (api.listEngines) {
+        const engines = await api.listEngines();
+        const activeObj = engines.find((e) => e.is_active || e.id === selectedEngine);
+        if (activeObj && deviceEl) {
+          deviceEl.textContent = `${activeObj.device.toUpperCase()} (${activeObj.compute_type})`;
+        }
+      }
+    } catch (_) {}
+
     setTimeout(() => {
       statusEl.textContent = '';
     }, 2500);
