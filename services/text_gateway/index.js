@@ -18,9 +18,24 @@ export class TextPipelineService {
 
   /**
    * MCP Tool: Clean and format text with deterministic pipeline.
-   * Options can specify filler removal, spoken punctuation, casing, sensitive masking, snippets.
+   * Options can specify a style ('FORMAL', 'CASUAL') or a JSON configuration string.
    */
-  static CleanTextJson(text, optionsJson) {
-    return TextPipelineService.processText(text, optionsJson);
+  static CleanTextJson(text, styleOrOptionsJson) {
+    let options = {};
+    const str = styleOrOptionsJson || '';
+    if (typeof str === 'string' && str.trim()) {
+      const trimmed = str.trim();
+      if (trimmed.toUpperCase() === 'FORMAL') {
+        options = { casing: true, fillerRemoval: true, spokenPunctuation: true, maskSensitiveData: true };
+      } else if (trimmed.toUpperCase() === 'CASUAL') {
+        options = { casing: false, fillerRemoval: false, spokenPunctuation: true, maskSensitiveData: true };
+      } else {
+        try {
+          options = JSON.parse(trimmed);
+        } catch (_) {}
+      }
+    }
+    const safeText = text || '';
+    return defaultPipeline.process(safeText, options);
   }
 }

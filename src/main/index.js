@@ -94,6 +94,8 @@ function toggleRecording() {
   pillWindow.webContents.send('pill:toggle-recording', { recording: isRecording });
 }
 
+import os from 'os';
+import fs from 'fs';
 import { cleanOrphanedTempAudio } from './temp-cleaner.js';
 
 // App lifecycle
@@ -102,6 +104,15 @@ app.whenReady().then(() => {
 
   // 0. Clean any orphaned temporary audio files from prior sessions
   cleanOrphanedTempAudio();
+
+  // Ensure MCP allowed directory exists
+  const userProfile = process.env.USERPROFILE || os.homedir();
+  const mcpAllowedDir = process.env.MCP_ALLOWED_DIR || path.join(userProfile, 'LocalPillRecordings');
+  if (!fs.existsSync(mcpAllowedDir)) {
+    try {
+      fs.mkdirSync(mcpAllowedDir, { recursive: true });
+    } catch (_) {}
+  }
 
   // 1. Start Python backend server
   supervisor.startRestServer(7777);

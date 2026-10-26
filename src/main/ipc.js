@@ -1,4 +1,7 @@
 import { ipcMain, shell } from 'electron';
+import path from 'path';
+import os from 'os';
+import fs from 'fs';
 import { getSpeechClient } from './speech-client.js';
 import { getTextClient } from './text-client.js';
 import { pasteTextToActiveWindow } from './paste.js';
@@ -220,5 +223,28 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
     }
 
     return settingsStore.getAll();
+  });
+
+  // MCP Info and Allowed Directory Explorer integration
+  ipcMain.handle('mcp:get-info', () => {
+    const userProfile = process.env.USERPROFILE || os.homedir();
+    const allowedDir = process.env.MCP_ALLOWED_DIR || path.join(userProfile, 'LocalPillRecordings');
+    return {
+      allowedDir,
+      speechEndpoint: 'http://localhost:8085/mcp',
+      textEndpoint: 'http://localhost:8095/mcp',
+    };
+  });
+
+  ipcMain.handle('mcp:open-allowed-dir', async () => {
+    const userProfile = process.env.USERPROFILE || os.homedir();
+    const allowedDir = process.env.MCP_ALLOWED_DIR || path.join(userProfile, 'LocalPillRecordings');
+    if (!fs.existsSync(allowedDir)) {
+      try {
+        fs.mkdirSync(allowedDir, { recursive: true });
+      } catch (_) {}
+    }
+    await shell.openPath(allowedDir);
+    return true;
   });
 }

@@ -12,6 +12,7 @@
     "test:text": "node tests/test_text_pipeline.mjs",
     "test:reliability": "node tests/test_phase4_reliability.mjs",
     "test:engines": "node tests/test_phase5_engines.mjs",
+    "test:mcp": "node tests/test_phase6_mcp.mjs",
     "test:chaos": "powershell -ExecutionPolicy Bypass -File scripts/chaos.ps1",
     "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests"
   },

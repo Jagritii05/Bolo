@@ -102,6 +102,7 @@ class ASRRestHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "No audio data received"})
                 return
 
+            prompt = self.headers.get("X-Prompt", "")
             audio_data = self.rfile.read(content_length)
 
             tmp_in = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
@@ -113,7 +114,7 @@ class ASRRestHandler(BaseHTTPRequestHandler):
             try:
                 wav_path, duration = convert_to_wav(tmp_in.name)
                 engine = registry.get_engine()
-                res = engine.transcribe(wav_path)
+                res = engine.transcribe(wav_path, prompt=prompt)
                 self._send_json(200, {
                     "text": res.get("text", ""),
                     "language": res.get("language", "en"),

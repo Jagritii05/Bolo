@@ -46,9 +46,10 @@ export class GraftTextClient {
     }
   }
 
-  async cleanTextJson(text, optionsJson = '') {
+  async cleanTextJson(text, optionsOrStyle = '') {
     await this._ensureInit();
-    return await this._textService.cleanTextJson(text, optionsJson);
+    const fn = this._textService.CleanTextJson || this._textService.cleanTextJson;
+    return await fn.call(this._textService, text, optionsOrStyle);
   }
 
   async health() {

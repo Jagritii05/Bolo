@@ -23,6 +23,10 @@ contextBridge.exposeInMainWorld('localPill', {
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get-all'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
+
+  // MCP Integration
+  getMcpInfo: () => ipcRenderer.invoke('mcp:get-info'),
+  openMcpAllowedDir: () => ipcRenderer.invoke('mcp:open-allowed-dir'),
 });
 
 // Legacy backward-compatibility adapter

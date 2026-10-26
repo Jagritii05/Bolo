@@ -71,6 +71,23 @@ export class GraftSpeechClient {
     }
   }
 
+  async transcribeFile(filePath, prompt = '') {
+    await this._ensureInit();
+    const rawJson = await this._speechService.TranscribeFileJson(filePath, prompt);
+    const result = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+
+    if (result.error && !result.text) {
+      throw new Error(`Graftcode transcription error: ${result.error}`);
+    }
+
+    return {
+      text: result.text || '',
+      language: result.language || 'en',
+      duration: result.duration || 0,
+      words: result.words || [],
+    };
+  }
+
   async setEngine(engineId) {
     await this._ensureInit();
     const success = await this._speechService.switchEngine(engineId);

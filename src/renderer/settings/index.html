@@ -22,6 +22,7 @@
       <button class="tab-btn active" data-tab="engine">Speech Engine</button>
       <button class="tab-btn" data-tab="pipeline">Text Pipeline</button>
       <button class="tab-btn" data-tab="snippets">Snippets</button>
+      <button class="tab-btn" data-tab="mcp">MCP</button>
       <button class="tab-btn" data-tab="general">General</button>
     </div>
 
@@ -163,6 +164,47 @@
           <input type="text" id="newTrigger" placeholder=":trigger" class="text-input" style="max-width: 140px;" />
           <input type="text" id="newExpansion" placeholder="Expansion text..." class="text-input" />
           <button id="addSnippetBtn" class="btn btn-secondary">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-mcp" style="display: none;">
+      <div class="section-card">
+        <h3>Model Context Protocol (MCP)</h3>
+        <p class="desc">Expose LocalPill speech and text services to Claude Desktop, Antigravity, and AI agents without an external API layer.</p>
+
+        <div class="form-group" style="margin-top: 14px;">
+          <label>Allowed Audio Folder (Security Boundary)</label>
+          <div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;">
+            <input type="text" id="mcpAllowedDir" readonly class="text-input" style="flex: 1; background: rgba(255,255,255,0.04); font-family: monospace; font-size: 12px;" />
+            <button id="openMcpFolderBtn" class="btn btn-secondary" style="white-space: nowrap;">Open Folder</button>
+            <button id="copyMcpFolderBtn" class="btn btn-secondary" style="white-space: nowrap;">Copy Path</button>
+          </div>
+          <small class="helper-text" style="color: #64748b; margin-top: 6px; display: block;">
+            Files outside this directory are strictly blocked by <code>PathNotAllowedException</code>. Symlink/junction escapes are automatically resolved and rejected.
+          </small>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <h4 style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">Claude Desktop Integration</h4>
+          <p class="desc" style="font-size: 12px;">Add this configuration to <code>%APPDATA%\Claude\claude_desktop_config.json</code>:</p>
+          <pre id="claudeConfigCode" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 12px; font-size: 11px; overflow-x: auto; color: #94a3b8; font-family: Consolas, monospace;"></pre>
+          <button id="copyClaudeConfigBtn" class="btn btn-secondary" style="margin-top: 6px; font-size: 12px;">Copy Claude Config</button>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <h4 style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">Antigravity / SSE Integration</h4>
+          <p class="desc" style="font-size: 12px;">Add this configuration to <code>~/.gemini/config/mcp_config.json</code>:</p>
+          <pre id="antigravityConfigCode" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 12px; font-size: 11px; overflow-x: auto; color: #94a3b8; font-family: Consolas, monospace;"></pre>
+          <button id="copyAntigravityConfigBtn" class="btn btn-secondary" style="margin-top: 6px; font-size: 12px;">Copy Antigravity Config</button>
+        </div>
+
+        <div style="margin-top: 20px;">
+          <h4 style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">Exposed MCP Tools</h4>
+          <ul style="font-size: 12px; color: #94a3b8; padding-left: 18px; line-height: 1.6;">
+            <li><code>TranscribeFileJson(filePath, prompt)</code>: Transcribes an audio file inside the allowed folder. Supports .wav, .mp3, .m4a, .webm, .ogg, .flac up to 50 MB.</li>
+            <li><code>CleanTextJson(text, styleOrOptionsJson)</code>: Cleans text, removes filler words, formats punctuation, and masks sensitive data (cards, Aadhaar, PAN, keys).</li>
+          </ul>
         </div>
       </div>
     </div>

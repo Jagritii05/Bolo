@@ -55,6 +55,16 @@
   - Privacy disclosure & badges: `groq-whisper` tagged with prominent `Audio leaves device` warning badge and network privacy disclosure
   - Pre-caching scripts: `scripts/setup.ps1` downloads both `base` and `tiny` models for zero first-use delay
   - Full parity across transports: verified live swap on both `RestSpeechClient` and `GraftSpeechClient` in automated test `tests/test_phase5_engines.mjs`
-- [ ] Phase 6: MCP
+- [x] Phase 6: Model Context Protocol (MCP) Integration
+  - Built-in MCP endpoints served by `gg.exe` on `http://localhost:8085/mcp` (Gateway A) and `http://localhost:8095/mcp` (Gateway B) over Streamable HTTP / SSE JSON-RPC 2.0
+  - Public static MCP tools exposed: `TranscribeFileJson(filePath, prompt)` and `CleanTextJson(text, styleOrOptionsJson)`
+  - Mandatory security boundary policy (`MCP_ALLOWED_DIR`, defaulting to `%USERPROFILE%\LocalPillRecordings`)
+  - Canonical realpath resolution (`fs.realpathSync`) preventing path traversal (`..\..\`), Windows directory junction escapes, and symlink escapes with `PathNotAllowedException`
+  - Audio extension allowlist (`.wav`, `.mp3`, `.m4a`, `.webm`, `.ogg`, `.flac`) rejecting unsupported formats with `InvalidAudioException`
+  - File size verification rejecting empty 0-byte files and enforcing 50 MB upper cap
+  - Settings UI MCP tab: copyable JSON configuration blocks for Claude Desktop and Google Antigravity, allowed folder path display, "Open Folder" explorer integration, and copy-path buttons
+  - Comprehensive documentation in `docs/mcp.md` detailing tool specs, security boundary, client configs, and demo walk-through
+  - Verified with 5/5 automated tests in `tests/test_phase6_mcp.mjs` (`npm run test:mcp`)
 - [ ] Phase 7: Benchmark and privacy check
 - [ ] Phase 8: Polish and docs
+

@@ -132,6 +132,81 @@ async function loadSettings() {
       }
     }
   } catch (_) {}
+
+  // Load MCP info & configuration templates
+  try {
+    if (api && api.getMcpInfo) {
+      const info = await api.getMcpInfo();
+      const mcpDirInput = document.getElementById('mcpAllowedDir');
+      if (mcpDirInput) mcpDirInput.value = info.allowedDir || '';
+
+      const claudeConfig = {
+        mcpServers: {
+          'localpill-speech': {
+            command: 'npx',
+            args: ['-y', 'mcp-remote', info.speechEndpoint || 'http://localhost:8085/mcp'],
+          },
+          'localpill-text': {
+            command: 'npx',
+            args: ['-y', 'mcp-remote', info.textEndpoint || 'http://localhost:8095/mcp'],
+          },
+        },
+      };
+
+      const antigravityConfig = {
+        mcpServers: {
+          'localpill-speech': {
+            serverUrl: info.speechEndpoint || 'http://localhost:8085/mcp',
+          },
+          'localpill-text': {
+            serverUrl: info.textEndpoint || 'http://localhost:8095/mcp',
+          },
+        },
+      };
+
+      const claudeCodeEl = document.getElementById('claudeConfigCode');
+      if (claudeCodeEl) claudeCodeEl.textContent = JSON.stringify(claudeConfig, null, 2);
+
+      const agyCodeEl = document.getElementById('antigravityConfigCode');
+      if (agyCodeEl) agyCodeEl.textContent = JSON.stringify(antigravityConfig, null, 2);
+
+      const openFolderBtn = document.getElementById('openMcpFolderBtn');
+      if (openFolderBtn) {
+        openFolderBtn.onclick = () => {
+          if (api.openMcpAllowedDir) api.openMcpAllowedDir();
+        };
+      }
+
+      const copyFolderBtn = document.getElementById('copyMcpFolderBtn');
+      if (copyFolderBtn) {
+        copyFolderBtn.onclick = () => {
+          navigator.clipboard.writeText(info.allowedDir || '');
+          copyFolderBtn.textContent = 'Copied!';
+          setTimeout(() => (copyFolderBtn.textContent = 'Copy Path'), 1500);
+        };
+      }
+
+      const copyClaudeBtn = document.getElementById('copyClaudeConfigBtn');
+      if (copyClaudeBtn) {
+        copyClaudeBtn.onclick = () => {
+          navigator.clipboard.writeText(JSON.stringify(claudeConfig, null, 2));
+          copyClaudeBtn.textContent = 'Copied!';
+          setTimeout(() => (copyClaudeBtn.textContent = 'Copy Claude Config'), 1500);
+        };
+      }
+
+      const copyAgyBtn = document.getElementById('copyAntigravityConfigBtn');
+      if (copyAgyBtn) {
+        copyAgyBtn.onclick = () => {
+          navigator.clipboard.writeText(JSON.stringify(antigravityConfig, null, 2));
+          copyAgyBtn.textContent = 'Copied!';
+          setTimeout(() => (copyAgyBtn.textContent = 'Copy Antigravity Config'), 1500);
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('MCP Info load error:', err);
+  }
 }
 
 // Save settings & live engine swap
