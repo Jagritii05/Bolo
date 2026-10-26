@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('localPill', {
   transcribeAudio: (audioBuffer) => ipcRenderer.invoke('speech:transcribe', audioBuffer),
   hidePill: () => ipcRenderer.send('pill:hide'),
   openSettings: () => ipcRenderer.send('pill:open-settings'),
+  openMicSettings: () => ipcRenderer.send('pill:open-mic-settings'),
   pasteText: (text) => ipcRenderer.send('pill:paste', text),
 
   // Settings

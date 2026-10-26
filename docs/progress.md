@@ -36,7 +36,18 @@
   - Implemented `src/main/graft/graft-text-client.js` and integrated dual-transport `src/main/text-client.js`
   - Updated supervisor and IPC pipeline in Electron main process
   - Verified with 23 automated pipeline tests (`tests/test_text_pipeline.mjs`) and multi-gateway E2E test (`tests/test_phase3_e2e.mjs`)
-- [ ] Phase 4: Reliability and error UX
+- [x] Phase 4: Reliability and error UX
+  - Supervisor backoff: exponential backoff schedule `[1000, 2000, 5000, 10000]` ms with max 5 attempts and 30s stability reset (`src/main/supervisor.js`)
+  - Readiness checks: TCP socket polling and HTTP `/health` polling before declaring services ready
+  - Startup warm-up: `warmUp()` routine to eliminate first-call latency on models
+  - Clean process-tree termination: Windows `taskkill /pid <PID> /T /F` with suppression of auto-restart on intentional stops
+  - Section 6.5 error mapping: implemented in `src/main/graft/adapter.js` covering all 10 states and edge cases
+  - Auto-retry on Gateway death: one automatic retry in `src/main/ipc.js` upon connection drop or gateway restart
+  - Elevated admin window detection: Win32 TokenElevation probe in `src/main/paste.js` preventing UIPI failures and copying text to clipboard
+  - Microphone permission denial handling: clickable link opening `ms-settings:privacy-microphone`
+  - Temp-file cleaner: `src/main/temp-cleaner.js` sweeping orphaned audio files on startup and shutdown
+  - Chaos test harness: `scripts/chaos.ps1` empirically verifying mid-session killing of Gateway A, Gateway B, and Python STT with automatic recovery
+  - Verified with 16 automated reliability unit & integration tests (`tests/test_phase4_reliability.mjs`) and manual checklist (`tests/MANUAL_QA.md`)
 - [ ] Phase 5: Engine swap and Settings
 - [ ] Phase 6: MCP
 - [ ] Phase 7: Benchmark and privacy check

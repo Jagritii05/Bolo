@@ -80,23 +80,34 @@ async function checkModelReady() {
       }
       showStatus('Press <kbd>Ctrl+Shift+Space</kbd> to speak', 'idle');
     } else {
-      showStatus('Loading model in background…', 'loading');
+      const msg = health?.kind === 'MODEL_LOADING'
+        ? 'Loading speech model…'
+        : (health?.error || 'Starting services…');
+      showStatus(msg, 'loading');
     }
   } catch (_) {
-    showStatus('Starting speech backend…', 'loading');
+    showStatus('Starting services…', 'loading');
   }
 }
 
 function startReadyPoller() {
-  showStatus('Starting speech backend…', 'loading');
+  showStatus('Starting services…', 'loading');
   readyPoller = setInterval(checkModelReady, 1500);
   checkModelReady();
+}
+
+function resetToReadyLater(delayMs = 2800) {
+  setTimeout(() => {
+    if (!isRecording) {
+      showStatus('Press <kbd>Ctrl+Shift+Space</kbd> to speak', 'idle');
+    }
+  }, delayMs);
 }
 
 // ── Audio recording ───────────────────────────────────────────────────────────
 async function startRecording() {
   if (!modelReady) {
-    showStatus('Speech model still warming up…', 'loading');
+    showStatus('Loading speech model…', 'loading');
     return;
   }
 
@@ -119,7 +130,8 @@ async function startRecording() {
       audioChunks = [];
 
       if (blob.size < 800) {
-        showStatus('No speech detected. Try again.', 'idle');
+        showStatus("Didn't catch any audio. Try again.", 'idle');
+        resetToReadyLater(2500);
         return;
       }
 
@@ -131,7 +143,16 @@ async function startRecording() {
     setRecordingUI(true);
   } catch (err) {
     console.error('Microphone access failed:', err);
-    showStatus('Microphone access denied ❌', 'error');
+    showStatus(
+      '<span id="micErrLink" style="cursor:pointer;text-decoration:underline;">Allow microphone access in Windows Settings > Privacy.</span>',
+      'error'
+    );
+    const link = document.getElementById('micErrLink');
+    if (link) {
+      link.addEventListener('click', () => {
+        if (api.openMicSettings) api.openMicSettings();
+      });
+    }
   }
 }
 
@@ -145,24 +166,50 @@ function stopRecording() {
 }
 
 async function handleAudioBlob(blob) {
-  showLoading();
+  showLoading('Transcribing & cleaning…');
   hideTranscript();
 
   try {
     const arrayBuffer = await blob.arrayBuffer();
-    // Pass buffer to Main process via IPC
     const result = await api.transcribeAudio(new Uint8Array(arrayBuffer));
     hideLoading();
 
-    if (result && result.success && result.text) {
+    if (!result) {
+      showStatus('Transcription failed. Details in log.', 'error');
+      resetToReadyLater(3000);
+      return;
+    }
+
+    if (!result.success) {
+      const errMsg = result.error || 'Transcription failed. Details in log.';
+      showStatus(errMsg, 'error');
+      resetToReadyLater(3500);
+      return;
+    }
+
+    if (result.text && result.text.trim()) {
       showTranscript(result.text);
-      showStatus('✓ Pasted  ·  Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
+
+      if (result.warning) {
+        // e.g. "Copied. Couldn't paste into an admin window."
+        showStatus(result.warning, 'error');
+        resetToReadyLater(4000);
+      } else if (result.maskedCount > 0) {
+        // e.g. "Done · 1 item masked"
+        const itemStr = result.maskedCount === 1 ? '1 item' : `${result.maskedCount} items`;
+        showStatus(`Done · ${itemStr} masked`, 'idle');
+        resetToReadyLater(3500);
+      } else {
+        showStatus('✓ Pasted · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
+      }
     } else {
-      showStatus(result?.error || 'Transcription failed', 'error');
+      showStatus("Didn't catch any audio. Try again.", 'idle');
+      resetToReadyLater(2500);
     }
   } catch (err) {
     hideLoading();
     showStatus(`Error: ${err.message}`, 'error');
+    resetToReadyLater(3500);
   }
 }
 

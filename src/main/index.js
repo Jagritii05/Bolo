@@ -94,9 +94,14 @@ function toggleRecording() {
   pillWindow.webContents.send('pill:toggle-recording', { recording: isRecording });
 }
 
+import { cleanOrphanedTempAudio } from './temp-cleaner.js';
+
 // App lifecycle
 app.whenReady().then(() => {
   logger.info('LocalPill starting up...');
+
+  // 0. Clean any orphaned temporary audio files from prior sessions
+  cleanOrphanedTempAudio();
 
   // 1. Start Python backend server
   supervisor.startRestServer(7777);
@@ -108,16 +113,16 @@ app.whenReady().then(() => {
     supervisor.startGatewayB(8095, 8096);
   }
 
-  // 2. Setup IPC
+  // 3. Setup IPC
   registerIpcHandlers({
     getPillWindow: () => pillWindow,
     openSettingsWindow: createSettingsWindow,
   });
 
-  // 3. Create Pill UI
+  // 4. Create Pill UI
   createPillWindow();
 
-  // 4. Setup Tray
+  // 5. Setup Tray
   setupTray({
     onTogglePill: () => {
       if (!pillWindow) {
@@ -137,10 +142,24 @@ app.whenReady().then(() => {
     },
   });
 
-  // 5. Register Global Shortcut
+  // 6. Register Global Shortcut
   registerGlobalShortcut(() => {
     toggleRecording();
   });
+
+  // 7. Background readiness check & warm-up
+  (async () => {
+    try {
+      const ready = await supervisor.waitForAllReady(transport, 25000);
+      if (ready) {
+        logger.info('All services reported ready. Initiating startup warm-up...');
+        const { getSpeechClient } = await import('./speech-client.js');
+        await supervisor.warmUp(getSpeechClient());
+      }
+    } catch (err) {
+      logger.warn(`Startup warm-up non-fatal warning: ${err.message}`);
+    }
+  })();
 
   logger.info('LocalPill initialization complete.');
 
@@ -157,6 +176,7 @@ app.on('will-quit', () => {
   unregisterGlobalShortcut();
   destroyTray();
   supervisor.stopAll();
+  cleanOrphanedTempAudio();
 });
 
 // Windows/Tray app: keep running when all windows are closed
