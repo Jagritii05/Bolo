@@ -15,7 +15,7 @@ This script provides the exact beat-by-beat timeline, screen actions, narration,
 | **01:02 – 01:20** | **Chaos Recovery** | Trigger `scripts/chaos.ps1` in a PowerShell window while the pill is visible. Gateway A (port 8085) is killed with `taskkill /F`. Supervisor detects child exit, pill displays "Service restarted", backoff reconnects in ~1 second. Perform another dictation: it succeeds immediately. | *"What happens when a background gateway dies? LocalPill's supervisor catches process termination, executes an exponential backoff reconnect, and recovers without user interruption."* | `powershell -File .\scripts\chaos.ps1` |
 | **01:20 – 01:35** | **MCP Integration** | Switch to Claude Desktop or Antigravity chat. Show MCP tools `TranscribeFileJson` and `CleanTextJson`. Prompt: *"Transcribe the file in my LocalPillRecordings folder called standup.wav and give me action items."* AI agent calls `localpill-speech`, returns transcript and bulleted summary. | *"LocalPill also exposes built-in Model Context Protocol tools. AI agents like Claude Desktop or Antigravity can transcribe local voice recordings privately inside an allowed security boundary."* | Send prompt to Claude / Antigravity |
 | **01:35 – 01:45** | **The Numbers** | Display benchmark summary graphic from `docs/benchmark.md`. Highlight p50 latency and RTF numbers. | *"In benchmarks, model inference completely dominates execution time, while Graftcode gives us full type safety and automatic MCP tool exposure."* | `powershell -File .\scripts\bench.ps1` |
-| **01:45 – 01:50** | **CTA & Disclosure** | GitHub repo link on screen with final disclosure line. | *"LocalPill is open source on GitHub. This project is part of the Graftcode Impact Programme; I may receive a reward from Graftcode S.A."* | — |
+| **01:45 – 01:50** | **Conclusion** | Project summary card on screen. | *"LocalPill demonstrates how Graftcode provides clean, multi-language IPC for speech transcription and text normalization on Windows."* | — |
 
 ---
 
@@ -44,6 +44,4 @@ console.log('Created standup fixture at:', target);
 - Expected output pasted into Notepad:
   > `"Send the project report to team: my card number is [CARD-MASKED]."`
 
-### 3. Mandatory Video Disclosure
-Display prominently at the end of the video:
-> **Disclosure:** Part of the Graftcode Impact Programme; I may receive a reward from Graftcode S.A.
+

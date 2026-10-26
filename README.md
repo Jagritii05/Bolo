@@ -6,9 +6,6 @@
 [![Graftcode: v1.4.11](https://img.shields.io/badge/Graftcode-v1.4.11-6366f1.svg)](https://graftcode.com)
 [![Local Speech: Whisper](https://img.shields.io/badge/Speech-Faster--Whisper-green.svg)](services/speech/)
 [![MCP: Enabled](https://img.shields.io/badge/MCP-JSON--RPC%202.0-orange.svg)](docs/mcp.md)
-[![License: MIT](https://img.shields.io/badge/License-MIT-gray.svg)](LICENSE)
-
-*Part of the Graftcode Impact Programme; I may receive a reward from Graftcode S.A.*
 
 ---
 
@@ -199,11 +196,3 @@ npm run bench
 - [docs/phase0-findings.md](docs/phase0-findings.md) — Empirical evidence answering all 12 Phase 0 questions.
 - [docs/decisions.md](docs/decisions.md) — Architectural decision log and deviations from original macOS app.
 - [docs/progress.md](docs/progress.md) — Milestone-by-milestone progress tracking.
-
----
-
-## 📄 License & Impact Programme Disclosure
-
-This project is licensed under the [MIT License](LICENSE).
-
-**Disclosure:** *Part of the Graftcode Impact Programme; I may receive a reward from Graftcode S.A.*

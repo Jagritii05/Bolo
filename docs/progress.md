@@ -79,8 +79,6 @@
     - Dual transport toggle documentation (`TRANSPORT=graft` vs `TRANSPORT=rest`)
     - Empirical benchmark summary table (LOC, p50/p95/p99 latency, RTF, memory peak) linked to `docs/benchmark.md`
     - Video demonstration scenario outline linked to `docs/demo-script.md`
-    - Prominent Impact Programme disclosure: *"Part of the Graftcode Impact Programme; I may receive a reward from Graftcode S.A."*
-    - MIT license reference
   - Complete 100-second screen-recording demonstration script in `docs/demo-script.md` (exact timeline, beats, narration, on-screen actions, test fixtures)
   - Comprehensive Windows engineering guide in `docs/windows-notes.md` covering:
     - Process tree termination (`taskkill /pid <PID> /T /F` vs `process.kill()`)
@@ -91,5 +89,5 @@
     - NTFS Directory Junction and symlink path traversal defense (`fs.realpathSync`)
     - Network interface binding (`0.0.0.0`) in `gg.exe` and recommended Windows Firewall lockdown rule
     - PyAV 14+ / 19 audio demuxing patch & standard WAV loader
-  - Root `LICENSE` file with standard MIT terms (2026)
   - All test suites verified and passing cleanly
+
