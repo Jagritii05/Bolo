@@ -92,6 +92,12 @@ export class ProcessSupervisor extends EventEmitter {
 
     const pythonBin = this.getPythonExecutable();
     const serverScript = path.join(PROJECT_ROOT, 'legacy-rest', 'asr_server_rest.py');
+    const bundledFfmpeg = path.join(
+      PROJECT_ROOT,
+      'node_modules',
+      'ffmpeg-static',
+      process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+    );
 
     logger.info(`Starting Python STT / REST server with ${pythonBin} on port ${port}...`);
 
@@ -101,6 +107,7 @@ export class ProcessSupervisor extends EventEmitter {
         ...process.env,
         ASR_PORT: String(port),
         PYTHONUNBUFFERED: '1',
+        FFMPEG_PATH: fs.existsSync(bundledFfmpeg) ? bundledFfmpeg : (process.env.FFMPEG_PATH || 'ffmpeg'),
       },
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe'],

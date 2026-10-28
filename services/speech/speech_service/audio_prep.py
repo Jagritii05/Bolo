@@ -81,7 +81,14 @@ def convert_to_wav(input_path: str, output_path: str = None) -> Tuple[str, float
                 "-acodec", "pcm_s16le",
                 output_path
             ]
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            no_window = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+            res = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                creationflags=no_window
+            )
             if res.returncode != 0:
                 raise InvalidAudioException(f"FFmpeg conversion failed: {res.stderr}")
 
