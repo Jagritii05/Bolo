@@ -117,12 +117,9 @@ app.whenReady().then(() => {
   // 1. Start Python backend server
   supervisor.startRestServer(7777);
 
-  // 2. Start Graftcode Gateways if transport is graft
-  const transport = process.env.TRANSPORT || settingsStore.get('transport') || 'graft';
-  if (transport === 'graft') {
-    supervisor.startGatewayA(8085, 8086);
-    supervisor.startGatewayB(8095, 8096);
-  }
+  // 2. Start Graftcode Gateways
+  supervisor.startGatewayA(8085, 8086);
+  supervisor.startGatewayB(8095, 8096);
 
   // 3. Setup IPC
   registerIpcHandlers({
@@ -161,7 +158,7 @@ app.whenReady().then(() => {
   // 7. Background readiness check & warm-up
   (async () => {
     try {
-      const ready = await supervisor.waitForAllReady(transport, 25000);
+      const ready = await supervisor.waitForAllReady('graft', 25000);
       if (ready) {
         logger.info('All services reported ready. Initiating startup warm-up...');
         const { getSpeechClient } = await import('./speech-client.js');

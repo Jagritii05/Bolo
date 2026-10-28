@@ -9,7 +9,7 @@ const SETTINGS_FILE = path.join(SETTINGS_DIR, 'settings.json');
 const DEFAULT_SETTINGS = {
   hotkey: 'CommandOrControl+Shift+Space',
   engine: 'whisper-base',
-  transport: process.env.TRANSPORT || 'rest', // 'rest' for baseline, 'graft' for graftcode
+  transport: 'graft',
   groqApiKey: process.env.GROQ_API_KEY || '',
   logTranscripts: false,
   textPipeline: {
@@ -47,6 +47,7 @@ class SettingsStore {
         this.settings = {
           ...DEFAULT_SETTINGS,
           ...parsed,
+          transport: 'graft',
           textPipeline: {
             ...DEFAULT_SETTINGS.textPipeline,
             ...(parsed.textPipeline || {})
@@ -56,6 +57,8 @@ class SettingsStore {
             ...(parsed.snippets || {})
           }
         };
+        // Persist corrected transport to disk
+        this.save();
       } else {
         this.save();
       }

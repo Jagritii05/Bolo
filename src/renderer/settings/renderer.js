@@ -112,8 +112,6 @@ async function loadSettings() {
 
   // General
   document.getElementById('hotkeyInput').value = s.hotkey || 'CommandOrControl+Shift+Space';
-  const transportRadio = document.querySelector(`input[name="transport"][value="${s.transport || 'graft'}"]`);
-  if (transportRadio) transportRadio.checked = true;
   document.getElementById('logTranscripts').checked = Boolean(s.logTranscripts);
 
   // Update telemetry
@@ -212,13 +210,12 @@ async function loadSettings() {
 // Save settings & live engine swap
 document.getElementById('saveBtn').addEventListener('click', async () => {
   const selectedEngine = document.querySelector('input[name="engine"]:checked')?.value || 'whisper-base';
-  const selectedTransport = document.querySelector('input[name="transport"]:checked')?.value || 'graft';
 
   const newSettings = {
     engine: selectedEngine,
     groqApiKey: groqApiKeyInput.value.trim(),
     hotkey: document.getElementById('hotkeyInput').value.trim(),
-    transport: selectedTransport,
+    transport: 'graft',
     logTranscripts: document.getElementById('logTranscripts').checked,
     textPipeline: {
       spokenPunctuation: document.getElementById('spokenPunctuation').checked,
