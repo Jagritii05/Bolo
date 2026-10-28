@@ -130,9 +130,17 @@ class FasterWhisperEngine(SpeechEngine):
 
             audio_input = audio_data if audio_data is not None else wav_path
 
+            default_prompt = (
+                "Dictation for LocalPill. "
+                "Terminology: Aadhaar, PAN card, B.Tech, email, password, commas, periods. "
+                "Formatting: numbers as digits (e.g. 1, 2, 3, 4)."
+            )
+            effective_prompt = prompt if prompt else default_prompt
+
             segments, info = self._model.transcribe(
                 audio_input,
-                initial_prompt=prompt if prompt else None,
+                language="en",
+                initial_prompt=effective_prompt,
                 word_timestamps=True,
                 beam_size=5
             )

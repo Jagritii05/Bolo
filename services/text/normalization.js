@@ -2,7 +2,7 @@
  * Text normalization: filler words, spoken punctuation, sentence casing, and snippets.
  */
 
-// Spoken punctuation mappings
+// Spoken punctuation and symbols mappings
 const SPOKEN_PUNCTUATION_PATTERNS = [
   { regex: /\b(exclamation mark|exclamation point)\b/gi, replacement: '!' },
   { regex: /\b(question mark)\b/gi, replacement: '?' },
@@ -13,7 +13,44 @@ const SPOKEN_PUNCTUATION_PATTERNS = [
   { regex: /\b(semicolon)\b/gi, replacement: ';' },
   { regex: /\b(open quote)\b/gi, replacement: '"' },
   { regex: /\b(close quote)\b/gi, replacement: '"' },
+  { regex: /\b(at the rate|add the rate)\b/gi, replacement: '@' },
+  { regex: /\b(hashtag|hash tag)\b/gi, replacement: '#' },
+  { regex: /\b(slash|forward slash)\b/gi, replacement: '/' },
+  { regex: /\b(backslash)\b/gi, replacement: '\\' },
+  { regex: /\b(underscore)\b/gi, replacement: '_' },
+  { regex: /\b(hyphen|dash)\b/gi, replacement: '-' },
 ];
+
+const SPOKEN_DIGIT_MAP = {
+  zero: '0',
+  one: '1',
+  two: '2',
+  three: '3',
+  four: '4',
+  five: '5',
+  six: '6',
+  seven: '7',
+  eight: '8',
+  nine: '9',
+};
+
+/**
+ * Converts sequences of 4 or more consecutive spoken digit words (e.g. "four two four two")
+ * into digit strings (e.g. "4242"), enabling downstream Luhn, Aadhaar, and phone regex detection.
+ * @param {string} text
+ * @returns {string}
+ */
+export function normalizeSpokenDigits(text) {
+  if (!text || typeof text !== 'string') return '';
+  const seqRegex = /\b(?:zero|one|two|three|four|five|six|seven|eight|nine)(?:\s+(?:zero|one|two|three|four|five|six|seven|eight|nine)){3,}\b/gi;
+  return text.replace(seqRegex, (match) => {
+    return match
+      .toLowerCase()
+      .split(/\s+/)
+      .map((w) => SPOKEN_DIGIT_MAP[w] || w)
+      .join('');
+  });
+}
 
 /**
  * Removes filler words (um, uh, er, ah, like, you know) with word boundary checks.

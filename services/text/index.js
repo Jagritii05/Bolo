@@ -4,6 +4,7 @@ export { maskSensitiveData } from './masking.js';
 export {
   removeFillerWords,
   replaceSpokenPunctuation,
+  normalizeSpokenDigits,
   applySentenceCasing,
   expandSnippets,
 } from './normalization.js';

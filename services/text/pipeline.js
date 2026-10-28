@@ -1,4 +1,10 @@
-import { removeFillerWords, replaceSpokenPunctuation, applySentenceCasing, expandSnippets } from './normalization.js';
+import {
+  removeFillerWords,
+  replaceSpokenPunctuation,
+  normalizeSpokenDigits,
+  applySentenceCasing,
+  expandSnippets,
+} from './normalization.js';
 import { maskSensitiveData } from './masking.js';
 
 export const DEFAULT_PIPELINE_OPTIONS = {
@@ -10,6 +16,7 @@ export const DEFAULT_PIPELINE_OPTIONS = {
   maskAadhaar: true,
   maskPan: true,
   maskApiKey: true,
+  maskPassword: true,
   maskEmail: false,
   maskPhone: false,
   snippets: {
@@ -36,9 +43,10 @@ export class TextPipeline {
       },
     };
 
-    // 1. Spoken Punctuation
+    // 1. Spoken Punctuation and Digit Normalization
     if (opt.spokenPunctuation) {
       text = replaceSpokenPunctuation(text);
+      text = normalizeSpokenDigits(text);
     }
 
     // 2. Filler Word Removal

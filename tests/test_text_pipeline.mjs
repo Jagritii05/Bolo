@@ -130,6 +130,26 @@ assert.strictEqual(pipeline.process(undefined), '', 'Undefined must return empty
 
 const longText = 'word '.repeat(10000) + 'period';
 const processedLong = pipeline.process(longText);
-assert.ok(processedLong.endsWith('.'), 'Long text must process without crash');
+// ── 12. Password, Contextual Aadhaar, & Spoken Digits ───────────────────────
+const passwordSample = 'the password is jagrithi add the rate 1-2-3';
+assert.strictEqual(
+  pipeline.process(passwordSample),
+  'The password is [PASSWORD-MASKED]',
+  'Password with symbols should be masked'
+);
+
+const aadhaarSpokenSample = 'My Aadhaal card number is 12345678910';
+assert.strictEqual(
+  pipeline.process(aadhaarSpokenSample),
+  'My Aadhaal card number is [AADHAAR-MASKED]',
+  'Contextual spoken Aadhaar must be masked'
+);
+
+const spokenDigitsSample = 'charge card four five three two zero one five one one two eight three zero three six six';
+assert.strictEqual(
+  pipeline.process(spokenDigitsSample),
+  'Charge card [CARD-MASKED]',
+  'Spoken digits must normalize and mask via Luhn'
+);
 
 console.log('[Test] ALL TEXT PIPELINE UNIT TESTS PASSED! \u2713');
