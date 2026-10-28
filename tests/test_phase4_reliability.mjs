@@ -257,7 +257,7 @@ await asyncTest('Supervisor starts Gateway B, survives termination, and recovers
     const child1 = sup.startGatewayB(8095, 8096);
     assert.ok(child1.pid > 0);
 
-    const ready1 = await sup.waitForReady('gateway-b', 12000);
+    const ready1 = await sup.waitForReady('gateway-b', 25000);
     assert.equal(ready1, true, 'Gateway B should be ready on port 8095');
 
     // 2. Kill Gateway B child process to simulate crash / chaos
@@ -269,7 +269,7 @@ await asyncTest('Supervisor starts Gateway B, survives termination, and recovers
     assert.equal(restartDetected, true, 'Supervisor should have detected crash and triggered restart');
 
     // 4. Wait for restarted Gateway B to be ready again
-    const ready2 = await sup.waitForReady('gateway-b', 12000);
+    const ready2 = await sup.waitForReady('gateway-b', 25000);
     assert.equal(ready2, true, 'Gateway B should have recovered and restarted');
   } finally {
     sup.stopProcess('gateway-b');

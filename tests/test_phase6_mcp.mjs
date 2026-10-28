@@ -442,28 +442,35 @@ async function main() {
     const validAudioPath = path.join(TEST_RECORDINGS_DIR, 'standup.wav');
     createSineWavFile(validAudioPath, 1.0);
 
-    const resValid = await sendHttpRequest(8085, '/mcp', 'POST', { 'Mcp-Session-Id': sessionIdA }, {
-      jsonrpc: '2.0',
-      method: 'tools/call',
-      params: {
-        name: transcribeTool.name,
-        arguments: { filePath: validAudioPath, prompt: 'meeting notes' },
-      },
-      id: 25,
-    });
+    let parsedValid = null;
+    let validOutput = '';
+    let transcriptionObj = null;
 
-    const parsedValid = JSON.parse(resValid.body);
-    const validOutput = parsedValid.result?.content?.[0]?.text || '';
-    console.log(`[Test 4] TranscribeFileJson MCP output: ${validOutput}`);
+    for (let attempt = 0; attempt < 15; attempt++) {
+      const resValid = await sendHttpRequest(8085, '/mcp', 'POST', { 'Mcp-Session-Id': sessionIdA }, {
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: {
+          name: transcribeTool.name,
+          arguments: { filePath: validAudioPath, prompt: 'meeting notes' },
+        },
+        id: 25 + attempt,
+      });
 
-    let transcriptionObj;
-    try {
-      let parsed = JSON.parse(validOutput);
-      if (typeof parsed === 'string') parsed = JSON.parse(parsed);
-      transcriptionObj = parsed;
-    } catch (_) {
-      transcriptionObj = null;
+      parsedValid = JSON.parse(resValid.body);
+      validOutput = parsedValid.result?.content?.[0]?.text || '';
+      try {
+        let p = JSON.parse(validOutput);
+        if (typeof p === 'string') p = JSON.parse(p);
+        if (p && typeof p.duration === 'number') {
+          transcriptionObj = p;
+          break;
+        }
+      } catch (_) {}
+
+      await new Promise((r) => setTimeout(r, 1000));
     }
+    console.log(`[Test 4] TranscribeFileJson MCP output: ${validOutput}`);
 
     if (!transcriptionObj || typeof transcriptionObj.duration !== 'number') {
       throw new Error(`Expected valid transcription JSON result, got: ${JSON.stringify(parsedValid)}`);

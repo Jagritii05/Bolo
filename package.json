@@ -6,7 +6,6 @@
   "type": "module",
   "scripts": {
     "start": "electron src/main/index.js",
-    "start:rest": "set TRANSPORT=rest&& electron src/main/index.js",
     "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
     "test": "node tests/test_text_pipeline.mjs && node tests/test_phase4_reliability.mjs && npm run test:speech",
     "test:text": "node tests/test_text_pipeline.mjs",
@@ -14,8 +13,7 @@
     "test:engines": "node tests/test_phase5_engines.mjs",
     "test:mcp": "node tests/test_phase6_mcp.mjs",
     "test:chaos": "powershell -ExecutionPolicy Bypass -File scripts/chaos.ps1",
-    "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests",
-    "bench": "powershell -ExecutionPolicy Bypass -File scripts/bench.ps1"
+    "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests"
   },
   "devDependencies": {
     "electron": "^28.3.3"
