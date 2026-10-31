@@ -39,71 +39,67 @@ Press `Ctrl+Shift+Space` anywhere in Windows, speak, and formatted text will pas
 
 ```mermaid
 flowchart TD
-    subgraph UI["Presentation Layer (Electron / Windows)"]
+    subgraph UI ["Presentation Layer (Electron / Windows)"]
         A["Floating Pill Window (380x68 Glassmorphism)"]
         B["Settings Dashboard (Engines, Memory, Normalization)"]
         C["Global Shortcut Listener (Ctrl+Shift+Space)"]
         D["Active Window Paste Subsystem (Windows SendInput / Clipboard)"]
     end
 
-    subgraph Core["LocalPill Core (Node.js Main Process)"]
+    subgraph Core ["LocalPill Core (Node.js Main Process)"]
         E["Lifecycle Supervisor & Process Manager"]
-        F["Settings Store (%APPDATA%/LocalPill/settings.json)"]
+        F["Settings Store (settings.json)"]
         G["Intent Router (find, remember, summarize, ask, dictate)"]
         H["Screen Capture Engine (desktopCapturer)"]
     end
 
-    subgraph Assistant["AI Visual Memory (Google Gemini)"]
+    subgraph Assistant ["AI Visual Memory (Google Gemini)"]
         I["Gemini 3 Flash Preview & Embedding API"]
-        J["Local Vector Store (25-slot FIFO memory/index.json)"]
+        J["Local Vector Store (25-slot FIFO index.json)"]
         K["Recent Screenshot Watcher (24h bounded lookback)"]
     end
 
-    subgraph GraftCode["GraftCode Cross-Language RPC Layer"]
+    subgraph GraftCode ["GraftCode Cross-Language RPC Layer"]
         L["@graft/npm-speech-gateway Client"]
         M["@graft/npm-text-gateway Client"]
-        N["Gateway A: SpeechService (:8085 / :8086)"]
-        O["Gateway B: TextPipelineService (:8095 / :8096)"]
-        P["Streamable HTTP MCP Server (:8085/mcp & :8095/mcp)"]
+        N["Gateway A: SpeechService (Port 8085 / 8086)"]
+        O["Gateway B: TextPipelineService (Port 8095 / 8096)"]
+        P["Streamable HTTP MCP Server (Port 8085/mcp & 8095/mcp)"]
     end
 
-    subgraph Engines["Execution Workers"]
+    subgraph Engines ["Execution Workers"]
         Q["Python Faster-Whisper Subprocess (CTranslate2 int8/float16)"]
         R["Groq Cloud Whisper API (Optional Cloud Fallback)"]
         S["Deterministic Text Normalizer & Snippet Expander"]
     end
 
-    subgraph External["External AI Agents"]
+    subgraph External ["External AI Agents"]
         T["Claude Desktop / Google Antigravity"]
     end
 
-    %% UI to Core
     C -->|Trigger Toggle| E
-    A <-->|IPC Events| E
-    B <-->|Settings IPC| F
+    A -->|IPC Events| E
+    E -->|State Updates| A
+    B -->|Settings IPC| F
     E -->|Route Speech Buffer| G
 
-    %% Core to Assistant
     G -->|mode: remember / ask| H
     H -->|JPEG Screen Frame| I
     G -->|mode: find / summarize| J
     K -->|24h Fresh Screenshots| I
     I -->|Vector Embeddings| J
 
-    %% Core to GraftCode
     G -->|mode: dictate / speech buffer| L
     L -->|WebSocket Binary RPC| N
     N -->|IPC Pipe| Q
-    N -.->|Opt-in Fallback| R
     N -->|Transcribed Text| M
     M -->|WebSocket RPC| O
     O -->|Normalize & Expand| S
     S -->|Clean Text| D
 
-    %% GraftCode to External MCP
-    N <-->|Streamable HTTP / SSE| P
-    O <-->|Streamable HTTP / SSE| P
-    P <-->|MCP Tools Protocol| T
+    N -->|MCP Transport| P
+    O -->|MCP Transport| P
+    T -->|MCP Tools Protocol| P
 ```
 
 ---
