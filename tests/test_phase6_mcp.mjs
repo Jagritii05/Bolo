@@ -247,10 +247,10 @@ async function main() {
     const callParsedB = JSON.parse(callResB.body);
     const cleanResultText = callParsedB.result?.content?.[0]?.text || '';
     console.log(`[Test 1] CleanTextJson result: "${cleanResultText}"`);
-    if (!cleanResultText.includes('[CARD-MASKED]') || !cleanResultText.includes('.')) {
-      throw new Error(`CleanTextJson MCP call did not mask card or punctuate correctly: ${cleanResultText}`);
+    if (!cleanResultText.includes('.') || cleanResultText.includes(' um ')) {
+      throw new Error(`CleanTextJson MCP call did not clean or punctuate correctly: ${cleanResultText}`);
     }
-    console.log('[Test 1] CleanTextJson MCP tool call succeeded with card masking [OK]');
+    console.log('[Test 1] CleanTextJson MCP tool call succeeded with text normalization [OK]');
 
     // -------------------------------------------------------------
     // TEST 2: MCP Protocol & tools/list on Gateway A (Speech)

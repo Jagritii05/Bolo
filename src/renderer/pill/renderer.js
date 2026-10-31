@@ -15,10 +15,17 @@ const loadingRow = document.getElementById('loadingRow');
 const loadingText = document.getElementById('loadingText');
 const settingsBtn = document.getElementById('settingsBtn');
 const closeBtn = document.getElementById('closeBtn');
+const resultsContainer = document.getElementById('resultsContainer');
+const resultsTitle = document.getElementById('resultsTitle');
+const resultsList = document.getElementById('resultsList');
+const resultsCloseBtn = document.getElementById('resultsCloseBtn');
 
 let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
+let isStarting = false;
+let shouldStopImmediately = false;
+let activeStream = null;
 let modelReady = false;
 let readyPoller = null;
 
@@ -56,6 +63,92 @@ function showTranscript(text) {
 function hideTranscript() {
   transcriptContainer.style.display = 'none';
   transcriptText.textContent = '';
+}
+
+function showResults(results, title) {
+  hideTranscript();
+  hideLoading();
+  statusRow.style.display = 'none';
+
+  resultsTitle.textContent = title || 'Screenshots';
+  resultsList.innerHTML = '';
+
+  if (!results || results.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:12px;color:#94a3b8;padding:8px 0;';
+    empty.textContent = 'No matching screenshots found.';
+    resultsList.appendChild(empty);
+  } else {
+    results.forEach((item) => {
+      const card = document.createElement('div');
+      card.className = 'result-item';
+
+      const fileName = item.filePath ? item.filePath.split(/[\\/]/).pop() : 'screenshot.png';
+      const scoreBadge = (typeof item.score === 'number' && item.score > 0)
+        ? `<span class="result-score">${Math.round(item.score * 100)}% match</span>`
+        : '';
+
+      card.innerHTML = `
+        <div class="result-header-row">
+          <span class="result-name" title="${fileName}">${fileName}</span>
+          ${scoreBadge}
+        </div>
+        <div class="result-desc" title="${item.description || ''}">${item.description || 'No description available.'}</div>
+        <div class="result-actions">
+          <button class="result-btn action-copy-path">Copy Path</button>
+          <button class="result-btn action-copy-img">Copy Image</button>
+          <button class="result-btn action-open">Open</button>
+        </div>
+      `;
+
+      const pathBtn = card.querySelector('.action-copy-path');
+      const imgBtn = card.querySelector('.action-copy-img');
+      const openBtn = card.querySelector('.action-open');
+
+      pathBtn.addEventListener('click', async () => {
+        if (api.copyPath) {
+          await api.copyPath(item.filePath);
+          pathBtn.textContent = 'Copied!';
+          setTimeout(() => { pathBtn.textContent = 'Copy Path'; }, 1500);
+        }
+      });
+
+      imgBtn.addEventListener('click', async () => {
+        if (api.copyImage) {
+          const ok = await api.copyImage(item.filePath);
+          imgBtn.textContent = ok ? 'Copied!' : 'Failed';
+          setTimeout(() => { imgBtn.textContent = 'Copy Image'; }, 1500);
+        }
+      });
+
+      openBtn.addEventListener('click', () => {
+        if (api.showInFolder) {
+          api.showInFolder(item.filePath);
+        }
+      });
+
+      resultsList.appendChild(card);
+    });
+  }
+
+  resultsContainer.style.display = 'flex';
+  pill.classList.add('expanded');
+  if (api.setPillHeight) {
+    api.setPillHeight(360);
+  }
+}
+
+function hideResults() {
+  resultsContainer.style.display = 'none';
+  pill.classList.remove('expanded');
+  if (api.setPillHeight) {
+    api.setPillHeight(68);
+  }
+  showStatus('Press <kbd>Ctrl+Shift+Space</kbd> to speak', 'idle');
+}
+
+if (resultsCloseBtn) {
+  resultsCloseBtn.addEventListener('click', hideResults);
 }
 
 function showLoading(msg = 'Transcribing & pasting…') {
@@ -106,16 +199,43 @@ function resetToReadyLater(delayMs = 2800) {
 
 // ── Audio recording ───────────────────────────────────────────────────────────
 async function startRecording() {
+  if (resultsContainer && resultsContainer.style.display !== 'none') {
+    hideResults();
+  }
+
+  if (isRecording || isStarting) {
+    return;
+  }
+
   if (!modelReady) {
     showStatus('Loading speech model…', 'loading');
     return;
   }
 
+  isStarting = true;
+  shouldStopImmediately = false;
+
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        sampleRate: 16000,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+      video: false,
+    });
+
+    if (shouldStopImmediately || !isStarting) {
+      stream.getTracks().forEach((track) => track.stop());
+      isStarting = false;
+      return;
+    }
+
+    activeStream = stream;
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
-      : (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus') ? 'audio/ogg;codecs=opus' : '');
+      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
 
     mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     audioChunks = [];
@@ -125,11 +245,14 @@ async function startRecording() {
     };
 
     mediaRecorder.onstop = async () => {
-      stream.getTracks().forEach((track) => track.stop());
+      if (activeStream) {
+        activeStream.getTracks().forEach((track) => track.stop());
+        activeStream = null;
+      }
       const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
       audioChunks = [];
 
-      if (blob.size < 800) {
+      if (blob.size < 1200) {
         showStatus("Didn't catch any audio. Try again.", 'idle');
         resetToReadyLater(2500);
         return;
@@ -138,10 +261,14 @@ async function startRecording() {
       await handleAudioBlob(blob);
     };
 
-    mediaRecorder.start(250);
+    mediaRecorder.start();
     isRecording = true;
+    isStarting = false;
     setRecordingUI(true);
   } catch (err) {
+    isStarting = false;
+    isRecording = false;
+    setRecordingUI(false);
     console.error('Microphone access failed:', err);
     showStatus(
       '<span id="micErrLink" style="cursor:pointer;text-decoration:underline;">Allow microphone access in Windows Settings > Privacy.</span>',
@@ -157,16 +284,28 @@ async function startRecording() {
 }
 
 function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+  if (isStarting) {
+    shouldStopImmediately = true;
+    isStarting = false;
+    setRecordingUI(false);
+    return;
   }
+
+  if (!isRecording) {
+    return;
+  }
+
   isRecording = false;
   setRecordingUI(false);
   showLoading();
+
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+  }
 }
 
 async function handleAudioBlob(blob) {
-  showLoading('Transcribing & cleaning…');
+  showLoading('Processing speech…');
   hideTranscript();
 
   try {
@@ -187,20 +326,52 @@ async function handleAudioBlob(blob) {
       return;
     }
 
-    if (result.text && result.text.trim()) {
-      showTranscript(result.text);
+    // Assistant intent routing responses
+    if (result.mode === 'find') {
+      showResults(result.results || [], result.text || 'Matching Screenshots');
+      return;
+    }
 
-      if (result.warning) {
-        // e.g. "Copied. Couldn't paste into an admin window."
-        showStatus(result.warning, 'error');
-        resetToReadyLater(4000);
-      } else if (result.maskedCount > 0) {
-        // e.g. "Done · 1 item masked"
-        const itemStr = result.maskedCount === 1 ? '1 item' : `${result.maskedCount} items`;
-        showStatus(`Done · ${itemStr} masked`, 'idle');
+    if (result.mode === 'remember') {
+      showStatus('Screen saved to memory · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
+      resetToReadyLater(3500);
+      return;
+    }
+
+    if (resultsContainer && resultsContainer.style.display !== 'none') {
+      hideResults();
+    }
+
+    if (result.mode === 'summarize') {
+      if (result.text && result.text.trim()) {
+        showStatus('Summary copied to clipboard · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
         resetToReadyLater(3500);
       } else {
-        showStatus('✓ Pasted · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
+        showStatus('No recent screenshots to summarize.', 'idle');
+        resetToReadyLater(2500);
+      }
+      return;
+    }
+
+    if (result.mode === 'ask') {
+      if (result.text && result.text.trim()) {
+        showStatus('Pasted reply · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
+        resetToReadyLater(3500);
+      } else {
+        showStatus('Could not answer from screen.', 'idle');
+        resetToReadyLater(2500);
+      }
+      return;
+    }
+
+    // Standard dictation
+    if (result.text && result.text.trim()) {
+      if (result.warning) {
+        showStatus(result.warning, 'error');
+        resetToReadyLater(4000);
+      } else {
+        showStatus('Pasted · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
+        resetToReadyLater(3500);
       }
     } else {
       showStatus("Didn't catch any audio. Try again.", 'idle');
@@ -219,7 +390,7 @@ if (api.onToggleRecording) {
     if (recording) {
       startRecording();
     } else {
-      if (isRecording) stopRecording();
+      stopRecording();
     }
   });
 }
@@ -232,7 +403,7 @@ if (api.onEngineChanged) {
 
 // ── Button clicks ─────────────────────────────────────────────────────────────
 micBtn.addEventListener('click', () => {
-  if (isRecording) {
+  if (isRecording || isStarting) {
     stopRecording();
   } else {
     startRecording();
@@ -246,7 +417,10 @@ if (settingsBtn) {
 }
 
 closeBtn.addEventListener('click', () => {
-  if (isRecording) stopRecording();
+  if (isRecording || isStarting) stopRecording();
+  if (resultsContainer && resultsContainer.style.display !== 'none') {
+    hideResults();
+  }
   if (api.hidePill) api.hidePill();
 });
 

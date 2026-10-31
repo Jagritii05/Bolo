@@ -37,10 +37,9 @@ console.log('====================================================');
 console.log(' LocalPill Phase 4 Reliability & Error UX Tests');
 console.log('====================================================\n');
 
+// 1. Error Mapping Table
 // ─────────────────────────────────────────────────────────────
-// 1. Section 6.5 Error Mapping Table
-// ─────────────────────────────────────────────────────────────
-console.log('--- Testing Section 6.5 Error Mapping Table ---');
+console.log('--- Testing Error Mapping Table ---');
 
 test('Row 1: Gateway not up yet maps to GATEWAY_NOT_READY', () => {
   const err1 = new Error('connect ECONNREFUSED 127.0.0.1:8085');

@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron';
+import { ipcMain, shell, clipboard, nativeImage, dialog, screen } from 'electron';
 import path from 'path';
 import os from 'os';
 import fs from 'fs';
@@ -8,6 +8,16 @@ import { pasteTextToActiveWindow } from './paste.js';
 import { settingsStore } from './settings-store.js';
 import { logger } from './logger.js';
 import { translateError } from './graft/adapter.js';
+import {
+  detectIntent,
+  findScreenshots,
+  summarizeRecent,
+  askAboutScreen,
+  rememberCurrentScreen,
+  clearMemoryStore,
+  getMemoryStatus,
+  startScreenshotWatcher,
+} from './assistant/index.js';
 
 export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
   // Check backend health
@@ -21,7 +31,7 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
     }
   });
 
-  // Audio transcription flow with auto-retry and Section 6.5 error mapping
+  // Audio transcription with auto-retry
   ipcMain.handle('speech:transcribe', async (_event, audioData) => {
     try {
       if (!audioData || audioData.length < 800) {
@@ -108,11 +118,116 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
 
       logger.logTranscript(cleanText);
 
-      // Count masked items
-      const maskMatches = cleanText.match(/\[[A-Z0-9_-]+-MASKED\]/g);
-      const maskedCount = maskMatches ? maskMatches.length : 0;
+      // Check intent if assistant is enabled
+      const assistantEnabled = settingsStore.get('assistantEnabled') !== false;
+      const intent = assistantEnabled ? detectIntent(cleanText) : { mode: 'dictate', query: cleanText };
+      logger.info(`Detected intent: [${intent.mode}] query: "${intent.query}"`);
 
-      // Auto paste into active window
+      // 1. Screenshot Memory Search: "find / search ..."
+      if (intent.mode === 'find') {
+        try {
+          const results = await findScreenshots(intent.query);
+          return {
+            success: true,
+            mode: 'find',
+            query: intent.query,
+            results,
+            text: results.length ? `Found ${results.length} screenshot(s) for "${intent.query}"` : `No screenshots matched "${intent.query}"`,
+            rawText: rawResult.text,
+            pasted: false,
+          };
+        } catch (findErr) {
+          return {
+            success: false,
+            mode: 'find',
+            query: intent.query,
+            error: findErr.message,
+            pasted: false,
+          };
+        }
+      }
+
+      // 2. Intentional Memory Capture: "remember this / save to memory ..."
+      if (intent.mode === 'remember') {
+        try {
+          const remembered = await rememberCurrentScreen(intent.query);
+          return {
+            success: true,
+            mode: 'remember',
+            query: intent.query,
+            text: 'Screen saved to memory',
+            path: remembered.path,
+            rawText: rawResult.text,
+            pasted: false,
+          };
+        } catch (remErr) {
+          return {
+            success: false,
+            mode: 'remember',
+            query: intent.query,
+            error: remErr.message,
+            pasted: false,
+          };
+        }
+      }
+
+      // 2. Screenshot Memory Summary: "summarize ..."
+      if (intent.mode === 'summarize') {
+        try {
+          const summary = await summarizeRecent(intent.query);
+          let pasteResult = { success: true, pasted: true };
+          if (summary) {
+            pasteResult = await pasteTextToActiveWindow(summary);
+          }
+          return {
+            success: true,
+            mode: 'summarize',
+            query: intent.query,
+            text: summary,
+            rawText: rawResult.text,
+            pasted: pasteResult.pasted,
+            warning: pasteResult.reason === 'ELEVATED_WINDOW' ? pasteResult.message : null,
+          };
+        } catch (sumErr) {
+          return {
+            success: false,
+            mode: 'summarize',
+            query: intent.query,
+            error: sumErr.message,
+            pasted: false,
+          };
+        }
+      }
+
+      // 3. Screen-Aware AI Reply / Assistant: "hey pill / reply / answer ..."
+      if (intent.mode === 'ask') {
+        try {
+          const reply = await askAboutScreen(intent.query);
+          let pasteResult = { success: true, pasted: true };
+          if (reply) {
+            pasteResult = await pasteTextToActiveWindow(reply);
+          }
+          return {
+            success: true,
+            mode: 'ask',
+            query: intent.query,
+            text: reply,
+            rawText: rawResult.text,
+            pasted: pasteResult.pasted,
+            warning: pasteResult.reason === 'ELEVATED_WINDOW' ? pasteResult.message : null,
+          };
+        } catch (askErr) {
+          return {
+            success: false,
+            mode: 'ask',
+            query: intent.query,
+            error: askErr.message,
+            pasted: false,
+          };
+        }
+      }
+
+      // 4. Default: Dictation auto-paste
       let pasteResult = { success: true, pasted: true };
       if (cleanText) {
         pasteResult = await pasteTextToActiveWindow(cleanText);
@@ -120,13 +235,13 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
 
       return {
         success: true,
+        mode: 'dictate',
         text: cleanText,
         rawText: rawResult.text,
         duration: rawResult.duration,
         words: rawResult.words,
         pasted: pasteResult.pasted,
         warning: pasteResult.reason === 'ELEVATED_WINDOW' ? pasteResult.message : null,
-        maskedCount,
       };
     } catch (err) {
       const trans = translateError(err);
@@ -149,10 +264,27 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
     shell.openExternal('ms-settings:privacy-microphone').catch(() => {});
   });
 
-  // Window visibility
+  // Window visibility & size
   ipcMain.on('pill:hide', () => {
     const win = getPillWindow();
     if (win) win.hide();
+  });
+
+  ipcMain.on('pill:set-height', (_event, height) => {
+    const win = getPillWindow();
+    if (win && !win.isDestroyed()) {
+      const primaryDisplay = screen.getPrimaryDisplay();
+      const { height: screenH } = primaryDisplay.workAreaSize;
+      const targetH = Math.max(68, Math.min(height || 68, 420));
+      const targetY = screenH - targetH - 25;
+      const bounds = win.getBounds();
+      win.setBounds({
+        x: bounds.x,
+        y: targetY,
+        width: bounds.width,
+        height: targetH,
+      });
+    }
   });
 
   // Open settings
@@ -202,9 +334,17 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
       settingsStore.set(k, v);
     }
 
-    if (newSettings.groqApiKey) {
+    if (newSettings.groqApiKey !== undefined) {
       process.env.GROQ_API_KEY = newSettings.groqApiKey;
     }
+    if (newSettings.geminiApiKey !== undefined) {
+      process.env.GEMINI_API_KEY = newSettings.geminiApiKey;
+    }
+
+    // Refresh screenshot watcher if memory settings or key changed
+    try {
+      startScreenshotWatcher();
+    } catch (_) {}
 
     // If active engine changed, trigger live swap!
     if (newSettings.engine && newSettings.engine !== oldEngine) {
@@ -223,6 +363,48 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
     }
 
     return settingsStore.getAll();
+  });
+
+  // Assistant & Screenshot Memory handlers
+  ipcMain.handle('assistant:status', () => {
+    return getMemoryStatus();
+  });
+
+  ipcMain.handle('assistant:clear-memory', () => {
+    clearMemoryStore();
+    return { success: true };
+  });
+
+  ipcMain.handle('assistant:find', async (_event, query) => {
+    return await findScreenshots(query);
+  });
+
+  ipcMain.on('assistant:copy-path', (_event, filePath) => {
+    if (filePath) clipboard.writeText(filePath);
+  });
+
+  ipcMain.on('assistant:copy-image', (_event, filePath) => {
+    if (filePath && fs.existsSync(filePath)) {
+      const img = nativeImage.createFromPath(filePath);
+      if (!img.isEmpty()) clipboard.writeImage(img);
+    }
+  });
+
+  ipcMain.on('assistant:show-in-folder', (_event, filePath) => {
+    if (filePath && fs.existsSync(filePath)) {
+      shell.showItemInFolder(filePath);
+    }
+  });
+
+  ipcMain.handle('assistant:choose-folder', async () => {
+    const res = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+      title: 'Select Screenshots Folder',
+    });
+    if (!res.canceled && res.filePaths?.[0]) {
+      return res.filePaths[0];
+    }
+    return null;
   });
 
   // MCP Info and Allowed Directory Explorer integration

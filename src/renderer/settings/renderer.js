@@ -93,18 +93,68 @@ async function loadSettings() {
 
   groqApiKeyInput.value = s.groqApiKey || '';
 
+  // Assistant & Memory
+  const assistantCheck = document.getElementById('assistantEnabled');
+  const memoryCheck = document.getElementById('memoryEnabled');
+  const geminiApiKeyInput = document.getElementById('geminiApiKey');
+  const screenshotFolderInput = document.getElementById('screenshotFolder');
+
+  if (assistantCheck) assistantCheck.checked = s.assistantEnabled !== false;
+  if (memoryCheck) memoryCheck.checked = s.memoryEnabled !== false;
+  if (geminiApiKeyInput) geminiApiKeyInput.value = s.geminiApiKey || '';
+  if (screenshotFolderInput) screenshotFolderInput.value = s.screenshotFolder || '';
+
+  const memoryModeSelect = document.getElementById('memoryMode');
+  if (memoryModeSelect) memoryModeSelect.value = s.memoryMode || 'hybrid';
+
+  const chooseFolderBtn = document.getElementById('chooseFolderBtn');
+  if (chooseFolderBtn) {
+    chooseFolderBtn.onclick = async () => {
+      if (api.chooseFolder) {
+        const folder = await api.chooseFolder();
+        if (folder) {
+          screenshotFolderInput.value = folder;
+        }
+      }
+    };
+  }
+
+  const clearMemoryBtn = document.getElementById('clearMemoryBtn');
+  const clearMemoryStatus = document.getElementById('clearMemoryStatus');
+  if (clearMemoryBtn) {
+    clearMemoryBtn.onclick = async () => {
+      if (api.clearMemory) {
+        if (clearMemoryStatus) clearMemoryStatus.textContent = 'Clearing index...';
+        await api.clearMemory();
+        if (clearMemoryStatus) clearMemoryStatus.textContent = 'Memory index cleared (0 / 25).';
+        const countEl = document.getElementById('memoryItemCount');
+        if (countEl) countEl.textContent = '0 / 25 screenshots';
+        setTimeout(() => {
+          if (clearMemoryStatus) clearMemoryStatus.textContent = 'Wipes index slots without deleting your actual files.';
+        }, 3000);
+      }
+    };
+  }
+
+  // Refresh assistant status
+  try {
+    if (api.getAssistantStatus) {
+      const ast = await api.getAssistantStatus();
+      const countEl = document.getElementById('memoryItemCount');
+      const watcherEl = document.getElementById('watcherStatus');
+      const folderEl = document.getElementById('memoryFolderPath');
+
+      if (countEl) countEl.textContent = `${ast?.indexedCount ?? 0} / 25 screenshots`;
+      if (watcherEl) watcherEl.textContent = ast?.watching ? 'Watching' : 'Idle';
+      if (folderEl) folderEl.textContent = ast?.folder || 'Default';
+    }
+  } catch (_) {}
+
   // Pipeline
   const p = s.textPipeline || {};
   document.getElementById('spokenPunctuation').checked = p.spokenPunctuation !== false;
   document.getElementById('fillerRemoval').checked = p.fillerRemoval !== false;
   document.getElementById('casing').checked = p.casing !== false;
-  document.getElementById('maskSensitiveData').checked = p.maskSensitiveData !== false;
-  document.getElementById('maskCard').checked = p.maskCard !== false;
-  document.getElementById('maskAadhaar').checked = p.maskAadhaar !== false;
-  document.getElementById('maskPan').checked = p.maskPan !== false;
-  document.getElementById('maskApiKey').checked = p.maskApiKey !== false;
-  document.getElementById('maskEmail').checked = Boolean(p.maskEmail);
-  document.getElementById('maskPhone').checked = Boolean(p.maskPhone);
 
   // Snippets
   snippetsMap = { ...(s.snippets || {}) };
@@ -214,6 +264,12 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   const newSettings = {
     engine: selectedEngine,
     groqApiKey: groqApiKeyInput.value.trim(),
+    assistantEnabled: document.getElementById('assistantEnabled')?.checked !== false,
+    memoryEnabled: document.getElementById('memoryEnabled')?.checked !== false,
+    memoryMode: document.getElementById('memoryMode')?.value || 'hybrid',
+    memoryMaxEntries: 25,
+    geminiApiKey: document.getElementById('geminiApiKey')?.value.trim() || '',
+    screenshotFolder: document.getElementById('screenshotFolder')?.value.trim() || '',
     hotkey: document.getElementById('hotkeyInput').value.trim(),
     transport: 'graft',
     logTranscripts: document.getElementById('logTranscripts').checked,
@@ -221,13 +277,6 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
       spokenPunctuation: document.getElementById('spokenPunctuation').checked,
       fillerRemoval: document.getElementById('fillerRemoval').checked,
       casing: document.getElementById('casing').checked,
-      maskSensitiveData: document.getElementById('maskSensitiveData').checked,
-      maskCard: document.getElementById('maskCard').checked,
-      maskAadhaar: document.getElementById('maskAadhaar').checked,
-      maskPan: document.getElementById('maskPan').checked,
-      maskApiKey: document.getElementById('maskApiKey').checked,
-      maskEmail: document.getElementById('maskEmail').checked,
-      maskPhone: document.getElementById('maskPhone').checked,
     },
     snippets: snippetsMap,
   };
@@ -259,6 +308,20 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
         if (activeObj && deviceEl) {
           deviceEl.textContent = `${activeObj.device.toUpperCase()} (${activeObj.compute_type})`;
         }
+      }
+    } catch (_) {}
+
+    // Refresh assistant status
+    try {
+      if (api.getAssistantStatus) {
+        const ast = await api.getAssistantStatus();
+        const countEl = document.getElementById('memoryItemCount');
+        const watcherEl = document.getElementById('watcherStatus');
+        const folderEl = document.getElementById('memoryFolderPath');
+
+        if (countEl) countEl.textContent = `${ast?.indexedCount ?? 0} screenshots`;
+        if (watcherEl) watcherEl.textContent = ast?.watcherRunning ? 'Running' : 'Stopped';
+        if (folderEl) folderEl.textContent = ast?.folder || 'Default';
       }
     } catch (_) {}
 

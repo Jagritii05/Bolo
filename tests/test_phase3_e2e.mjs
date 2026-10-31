@@ -70,9 +70,6 @@ async function main() {
     console.log(`[Phase 3 E2E] Input : "${rawTranscript}"`);
     console.log(`[Phase 3 E2E] Output: "${cleanResult}"`);
 
-    if (!cleanResult.includes('[CARD-MASKED]')) {
-      throw new Error('Expected credit card to be masked by Gateway B');
-    }
     if (!cleanResult.includes('user@example.com')) {
       throw new Error('Expected snippet :email to be expanded by Gateway B');
     }

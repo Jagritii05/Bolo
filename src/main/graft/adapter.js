@@ -16,9 +16,7 @@ export const GRAFT_PORTS = {
 let isSpeechConfigured = false;
 let isTextConfigured = false;
 
-/**
- * Section 6.5 Error Mapping Table
- */
+// Error translation mappings
 export const ERROR_MAPPINGS = {
   GATEWAY_NOT_READY: {
     kind: 'GATEWAY_NOT_READY',

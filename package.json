@@ -7,8 +7,9 @@
   "scripts": {
     "start": "electron src/main/index.js",
     "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
-    "test": "node tests/test_text_pipeline.mjs && node tests/test_phase4_reliability.mjs && npm run test:speech",
+    "test": "node tests/test_text_pipeline.mjs && node tests/test_assistant.mjs && node tests/test_phase4_reliability.mjs && npm run test:speech",
     "test:text": "node tests/test_text_pipeline.mjs",
+    "test:assistant": "node tests/test_assistant.mjs",
     "test:reliability": "node tests/test_phase4_reliability.mjs",
     "test:engines": "node tests/test_phase5_engines.mjs",
     "test:mcp": "node tests/test_phase6_mcp.mjs",

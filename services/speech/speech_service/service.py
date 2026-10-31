@@ -127,13 +127,9 @@ class SpeechService:
         res = self.transcribe_bytes(audio_bytes, prompt=prompt)
         return json.dumps(res)
 
-    # ── MCP Endpoint ─────────────────────────────────────────────────────────
+    # Transcribe audio file within allowed directory
     @staticmethod
     def TranscribeFileJson(filePath: str, prompt: str = "") -> str:
-        """
-        MCP Tool: Transcribes an audio file within the allowed recordings boundary.
-        Path is restricted to MCP_ALLOWED_DIR to prevent arbitrary disk access.
-        """
         norm_path = os.path.normpath(filePath)
         norm_allowed = os.path.normpath(MCP_ALLOWED_DIR)
 

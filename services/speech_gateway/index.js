@@ -84,10 +84,7 @@ export class SpeechService {
     }
   }
 
-  /**
-   * MCP Tool: Transcribe an audio file inside the designated MCP_ALLOWED_DIR.
-   * Enforces path containment (resolving symlinks/junctions), extension allowlist, and size caps.
-   */
+  // Transcribe audio file inside allowed directory
   static TranscribeFileJson(filePath, prompt) {
     const safePrompt = prompt || '';
     if (!filePath || typeof filePath !== 'string' || !filePath.trim()) {

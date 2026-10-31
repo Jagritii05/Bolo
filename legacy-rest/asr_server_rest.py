@@ -103,7 +103,16 @@ class ASRRestHandler(BaseHTTPRequestHandler):
                 return
 
             prompt = self.headers.get("X-Prompt", "")
-            audio_data = self.rfile.read(content_length)
+            
+            remaining = content_length
+            chunks = []
+            while remaining > 0:
+                chunk = self.rfile.read(min(remaining, 65536))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            audio_data = b"".join(chunks)
 
             tmp_in = tempfile.NamedTemporaryFile(suffix=".webm", delete=False)
             tmp_in.write(audio_data)

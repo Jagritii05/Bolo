@@ -129,9 +129,14 @@ export function applySentenceCasing(text) {
   return result;
 }
 
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^$()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Expands custom voice snippets.
  * Longest triggers match first to prevent prefix collision.
+ * Handles spoken colon variants ("colon email", "colin, email", ": email") as well as plain triggers.
  * @param {string} text
  * @param {Record<string, string>} snippets
  * @returns {string}
@@ -147,10 +152,35 @@ export function expandSnippets(text, snippets = {}) {
 
   for (const trigger of sortedTriggers) {
     const expansion = snippets[trigger];
+    if (!trigger || !expansion) continue;
+
+    // 1. Exact match
     if (result.includes(trigger)) {
       result = result.split(trigger).join(expansion);
     }
+
+    // 2. Colon-prefixed triggers (e.g. ':email')
+    if (trigger.startsWith(':')) {
+      const name = trigger.slice(1).trim();
+      if (name) {
+        const escaped = escapeRegExp(name);
+        const patterns = [
+          { pat: new RegExp('(?:\\s*:|:)\\s*' + escaped + '\\b', 'gi'), repl: ' ' + expansion },
+          { pat: new RegExp('\\bcolon\\s*,?\\s*' + escaped + '\\b', 'gi'), repl: expansion },
+          { pat: new RegExp('\\bcolin\\s*,?\\s*' + escaped + '\\b', 'gi'), repl: expansion },
+          { pat: new RegExp('\\bcall\\s+in\\s*,?\\s*' + escaped + '\\b', 'gi'), repl: expansion },
+        ];
+        for (const { pat, repl } of patterns) {
+          result = result.replace(pat, repl);
+        }
+      }
+    } else {
+      // 3. Plain word / phrase trigger (e.g. 'my email' or 'email')
+      const escaped = escapeRegExp(trigger);
+      const wordPat = new RegExp('\\b' + escaped + '\\b', 'gi');
+      result = result.replace(wordPat, expansion);
+    }
   }
 
-  return result;
+  return result.replace(/[ \t]{2,}/g, ' ');
 }

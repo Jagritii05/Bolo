@@ -8,14 +8,15 @@ import { setupTray, destroyTray } from './tray.js';
 import { registerIpcHandlers } from './ipc.js';
 import { logger } from './logger.js';
 import { settingsStore } from './settings-store.js';
+import { startScreenshotWatcher, stopScreenshotWatcher } from './assistant/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
-const PILL_WIDTH = 480;
-const PILL_HEIGHT = 100;
-const MARGIN_BOTTOM = 35;
+const PILL_WIDTH = 380;
+const PILL_HEIGHT = 68;
+const MARGIN_BOTTOM = 25;
 
 let pillWindow = null;
 let settingsWindow = null;
@@ -80,7 +81,16 @@ function createSettingsWindow() {
   });
 }
 
+let lastToggleTime = 0;
+
 function toggleRecording() {
+  const now = Date.now();
+  if (now - lastToggleTime < 350) {
+    logger.info(`Ignored shortcut bounce (${now - lastToggleTime}ms since last toggle)`);
+    return;
+  }
+  lastToggleTime = now;
+
   if (!pillWindow) {
     createPillWindow();
   }
@@ -169,6 +179,13 @@ app.whenReady().then(() => {
     }
   })();
 
+  // 8. Start Screenshot Memory Watcher (if enabled)
+  try {
+    startScreenshotWatcher();
+  } catch (memErr) {
+    logger.warn(`Screenshot memory watcher failed to start: ${memErr.message}`);
+  }
+
   logger.info('LocalPill initialization complete.');
 
   if (process.env.TEST_SMOKE === '1') {
@@ -181,6 +198,9 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   logger.info('LocalPill shutting down...');
+  try {
+    stopScreenshotWatcher();
+  } catch (_) {}
   unregisterGlobalShortcut();
   destroyTray();
   supervisor.stopAll();

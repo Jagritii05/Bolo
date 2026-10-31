@@ -25,10 +25,7 @@ from ..errors import ModelNotReadyException, TranscriptionFailedException
 from ..config import MODELS_DIR
 
 class FasterWhisperEngine(SpeechEngine):
-    """
-    Local speech-to-text powered by faster-whisper (CTranslate2).
-    Supports whisper-tiny, whisper-base, and whisper-small models.
-    """
+    # Local speech-to-text powered by faster-whisper (CTranslate2)
     def __init__(self, model_size: str = "base"):
         self.model_size = model_size
         self.id = f"whisper-{model_size}"

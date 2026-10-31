@@ -10,4 +10,6 @@ gg.exe
 *.dll
 *.log
 .env
+.env.*
+!.env.example
 .pytest_cache/
