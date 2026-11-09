@@ -4,15 +4,14 @@ import fs from 'fs';
 import os from 'os';
 import http from 'http';
 import { fileURLToPath } from 'url';
+import { supervisor } from '../src/main/supervisor.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
-const PYTHON_BIN = path.join(PROJECT_ROOT, '.venv', 'Scripts', 'python.exe');
-const ASR_SCRIPT = path.join(PROJECT_ROOT, 'legacy-rest', 'asr_server_rest.py');
 const GG_EXE = path.join(PROJECT_ROOT, 'gg.exe');
-const SPEECH_GATEWAY_MODULE = path.join(PROJECT_ROOT, 'services', 'speech_gateway', 'index.js');
+const SPEECH_PYTHON_MODULE = path.join(PROJECT_ROOT, 'services', 'speech');
 const TEXT_GATEWAY_MODULE = path.join(PROJECT_ROOT, 'services', 'text_gateway', 'index.js');
 
 const TEST_RECORDINGS_DIR = path.join(PROJECT_ROOT, 'tests', 'fixtures', 'mcp_allowed');
@@ -47,7 +46,7 @@ function createSineWavFile(filePath, durationSec = 1.0, sampleRate = 16000) {
   fs.writeFileSync(filePath, buffer);
 }
 
-function sendHttpRequest(port, path, method = 'POST', headers = {}, body = null) {
+function sendHttpRequest(port, path, method = 'POST', headers = {}, body = null, timeout = 30000) {
   return new Promise((resolve, reject) => {
     const req = http.request(
       {
@@ -59,7 +58,7 @@ function sendHttpRequest(port, path, method = 'POST', headers = {}, body = null)
           'Content-Type': 'application/json',
           ...headers,
         },
-        timeout: 10000,
+        timeout,
       },
       (res) => {
         let data = '';
@@ -117,27 +116,31 @@ async function main() {
 
   process.env.MCP_ALLOWED_DIR = TEST_RECORDINGS_DIR;
 
-  // 2. Start Python speech worker
-  console.log('[Test] Starting Python speech worker on 127.0.0.1:7777...');
-  const pythonProc = spawn(PYTHON_BIN, [ASR_SCRIPT], {
-    cwd: PROJECT_ROOT,
-    env: { ...process.env, ASR_PORT: '7777', PYTHONUNBUFFERED: '1' },
-    windowsHide: true,
-  });
+  // Pre-check: Ensure ports are not held by another running LocalPill instance (e.g. npm start)
+  const port8085Busy = await supervisor.checkPortListening(8085);
+  const port8095Busy = await supervisor.checkPortListening(8095);
+  if (port8085Busy || port8095Busy) {
+    console.error('\n[FATAL] Port 8085 or 8095 is already in use by a running LocalPill instance.');
+    console.error('LocalPill is currently running in your system tray or another terminal.');
+    console.error('Please quit LocalPill (right-click tray icon -> Quit, or stop npm start) before running test:mcp.\n');
+    process.exit(1);
+  }
 
-  // 3. Start Gateway A (Speech) on 8085 / 8086
-  console.log('[Test] Starting Gateway A (Speech) on port 8085...');
+  // 2. Start Gateway A (Direct Python SpeechService) on 8085 / 8086
+  console.log('[Test] Starting Gateway A (Python SpeechService) on port 8085...');
   const gatewayA = spawn(
     GG_EXE,
-    ['--runtime', 'nodejs', '--modules', SPEECH_GATEWAY_MODULE, '--port', '8085', '--httpPort', '8086'],
+    ['--runtime', 'python', '--modules', SPEECH_PYTHON_MODULE, '--port', '8085', '--httpPort', '8086'],
     {
       cwd: PROJECT_ROOT,
-      env: { ...process.env, MCP_ALLOWED_DIR: TEST_RECORDINGS_DIR },
+      env: supervisor.getPythonGatewayEnv({ MCP_ALLOWED_DIR: TEST_RECORDINGS_DIR }),
       windowsHide: true,
     }
   );
+  gatewayA.stdout.on('data', (d) => process.stdout.write(`[GwA Out] ${d}`));
+  gatewayA.stderr.on('data', (d) => process.stderr.write(`[GwA Err] ${d}`));
 
-  // 4. Start Gateway B (Text) on 8095 / 8096
+  // 3. Start Gateway B (Text) on 8095 / 8096
   console.log('[Test] Starting Gateway B (Text) on port 8095...');
   const gatewayB = spawn(
     GG_EXE,
@@ -147,10 +150,11 @@ async function main() {
       windowsHide: true,
     }
   );
+  gatewayB.stdout.on('data', (d) => process.stdout.write(`[GwB Out] ${d}`));
+  gatewayB.stderr.on('data', (d) => process.stderr.write(`[GwB Err] ${d}`));
 
   const cleanup = () => {
     console.log('[Test] Cleaning up processes...');
-    if (pythonProc && pythonProc.pid) killTree(pythonProc.pid);
     if (gatewayA && gatewayA.pid) killTree(gatewayA.pid);
     if (gatewayB && gatewayB.pid) killTree(gatewayB.pid);
 
@@ -175,21 +179,18 @@ async function main() {
   });
 
   try {
-    // Wait for services
+    // Wait for services (up to 120s to allow for UGM network upload and module analysis)
     console.log('[Test] Awaiting gateway readiness...');
-    const aReady = await waitForHttp(8085, '/status');
-    const bReady = await waitForHttp(8095, '/status');
-    const pyReady = await waitForHttp(7777, '/health');
+    const aReady = await waitForHttp(8085, '/status', 200);
+    const bReady = await waitForHttp(8095, '/status', 200);
 
-    if (!aReady || !bReady || !pyReady) {
-      throw new Error(`Services failed to start. GatewayA=${aReady}, GatewayB=${bReady}, Py=${pyReady}`);
+    if (!aReady || !bReady) {
+      throw new Error(`Services failed to start. GatewayA=${aReady}, GatewayB=${bReady}`);
     }
     console.log('[Test] All services ready [OK]');
 
-    // -------------------------------------------------------------
-    // TEST 1: MCP Protocol & tools/list on Gateway B (Text)
-    // -------------------------------------------------------------
-    console.log('\n--- TEST 1: Gateway B MCP Protocol & CleanTextJson ---');
+    // test 1: initialize and list tools on gateway b
+    console.log('\n--- Test 1: Gateway B MCP protocol & CleanTextJson ---');
     const initResB = await sendHttpRequest(8095, '/mcp', 'POST', {}, {
       jsonrpc: '2.0',
       method: 'initialize',
@@ -252,10 +253,8 @@ async function main() {
     }
     console.log('[Test 1] CleanTextJson MCP tool call succeeded with text normalization [OK]');
 
-    // -------------------------------------------------------------
-    // TEST 2: MCP Protocol & tools/list on Gateway A (Speech)
-    // -------------------------------------------------------------
-    console.log('\n--- TEST 2: Gateway A MCP Protocol & TranscribeFileJson ---');
+    // test 2: initialize and list tools on gateway a
+    console.log('\n--- Test 2: Gateway A MCP protocol & TranscribeFileJson ---');
     const initResA = await sendHttpRequest(8085, '/mcp', 'POST', {}, {
       jsonrpc: '2.0',
       method: 'initialize',
@@ -317,12 +316,10 @@ async function main() {
       return JSON.stringify(parsed);
     }
 
-    // -------------------------------------------------------------
-    // TEST 3: Security Boundary & Path Restriction
-    // -------------------------------------------------------------
-    console.log('\n--- TEST 3: Security Boundary & Exception Assertions ---');
+    // test 3: check path restriction and error handling
+    console.log('\n--- Test 3: Security boundary & exception checks ---');
 
-    // 3A: Disallowed extension
+    // disallowed extension
     const txtPath = path.join(TEST_RECORDINGS_DIR, 'standup.txt');
     fs.writeFileSync(txtPath, 'Not audio data');
     const resDisallowedExt = await sendHttpRequest(8085, '/mcp', 'POST', { 'Mcp-Session-Id': sessionIdA }, {
@@ -342,7 +339,7 @@ async function main() {
     }
     console.log('[Test 3A] Blocked invalid extension (.txt) [OK]');
 
-    // 3B: Empty 0-byte audio file
+    // empty file
     const emptyWav = path.join(TEST_RECORDINGS_DIR, 'empty.wav');
     fs.writeFileSync(emptyWav, Buffer.alloc(0));
     const resEmpty = await sendHttpRequest(8085, '/mcp', 'POST', { 'Mcp-Session-Id': sessionIdA }, {
@@ -362,7 +359,7 @@ async function main() {
     }
     console.log('[Test 3B] Blocked empty 0-byte file [OK]');
 
-    // 3C: Absolute path outside allowed directory
+    // path outside allowed directory
     const winIniPath = 'C:\\Windows\\win.ini';
     const resOutside = await sendHttpRequest(8085, '/mcp', 'POST', { 'Mcp-Session-Id': sessionIdA }, {
       jsonrpc: '2.0',
@@ -381,7 +378,7 @@ async function main() {
     }
     console.log('[Test 3C] Blocked absolute path outside allowed directory [OK]');
 
-    // 3D: Relative path traversal escape (..\..\)
+    // path traversal escape
     const outsideWav = path.join(TEST_OUTSIDE_DIR, 'secret.wav');
     createSineWavFile(outsideWav, 0.5);
 
@@ -403,7 +400,7 @@ async function main() {
     }
     console.log('[Test 3D] Blocked relative traversal escape (PathNotAllowedException) [OK]');
 
-    // 3E: Windows Directory Junction Escape
+    // directory junction escape
     const junctionPath = path.join(TEST_RECORDINGS_DIR, 'evil_junction');
     try {
       fs.symlinkSync(TEST_OUTSIDE_DIR, junctionPath, 'junction');
@@ -435,10 +432,8 @@ async function main() {
       } catch (_) {}
     }
 
-    // -------------------------------------------------------------
-    // TEST 4: Valid Audio Transcription via MCP Tool Call
-    // -------------------------------------------------------------
-    console.log('\n--- TEST 4: Valid Audio Transcription via MCP Tool Call ---');
+    // test 4: transcribe valid audio via mcp
+    console.log('\n--- Test 4: Audio transcription via MCP tool call ---');
     const validAudioPath = path.join(TEST_RECORDINGS_DIR, 'standup.wav');
     createSineWavFile(validAudioPath, 1.0);
 

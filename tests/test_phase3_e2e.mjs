@@ -1,54 +1,62 @@
-import { spawn, execSync } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { GraftSpeechClient } from '../src/main/graft/graft-speech-client.js';
 import { GraftTextClient } from '../src/main/graft/graft-text-client.js';
+import { ProcessSupervisor } from '../src/main/supervisor.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const PROJECT_ROOT = path.resolve(__dirname, '..');
+function createSineWavBuffer(durationSec = 1.0, sampleRate = 16000) {
+  const numSamples = Math.floor(durationSec * sampleRate);
+  const dataSize = numSamples * 2;
+  const buffer = Buffer.alloc(44 + dataSize);
 
-const PYTHON_BIN = path.join(PROJECT_ROOT, '.venv', 'Scripts', 'python.exe');
-const ASR_SCRIPT = path.join(PROJECT_ROOT, 'legacy-rest', 'asr_server_rest.py');
-const GG_EXE = path.join(PROJECT_ROOT, 'gg.exe');
-const SPEECH_MODULE = path.join(PROJECT_ROOT, 'services', 'speech_gateway', 'index.js');
-const TEXT_MODULE = path.join(PROJECT_ROOT, 'services', 'text_gateway', 'index.js');
+  buffer.write('RIFF', 0);
+  buffer.writeUInt32LE(36 + dataSize, 4);
+  buffer.write('WAVE', 8);
+
+  buffer.write('fmt ', 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(1, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * 2, 28);
+  buffer.writeUInt16LE(2, 32);
+  buffer.writeUInt16LE(16, 34);
+
+  buffer.write('data', 36);
+  buffer.writeUInt32LE(dataSize, 40);
+
+  for (let i = 0; i < numSamples; i++) {
+    const val = Math.floor(32767 * 0.3 * Math.sin(2 * Math.PI * 440 * i / sampleRate));
+    buffer.writeInt16LE(val, 44 + i * 2);
+  }
+  return buffer;
+}
 
 async function main() {
-  console.log('[Phase 3 E2E] Starting Python speech worker (7777)...');
-  const pythonProc = spawn(PYTHON_BIN, [ASR_SCRIPT], {
-    cwd: PROJECT_ROOT,
-    env: { ...process.env, ASR_PORT: '7777', PYTHONUNBUFFERED: '1' },
-    windowsHide: true,
-  });
+  const supervisor = new ProcessSupervisor();
 
-  console.log('[Phase 3 E2E] Starting Graftcode Gateway A on port 8085...');
-  const gatewayAProc = spawn(
-    GG_EXE,
-    ['--runtime', 'nodejs', '--modules', SPEECH_MODULE, '--port', '8085', '--httpPort', '8086'],
-    { cwd: PROJECT_ROOT, windowsHide: true }
-  );
+  console.log('[Phase 3 E2E] Starting Graftcode Gateway A (Python SpeechService) on port 8085...');
+  supervisor.startGatewayA(8085, 8086);
 
-  console.log('[Phase 3 E2E] Starting Graftcode Gateway B on port 8095...');
-  const gatewayBProc = spawn(
-    GG_EXE,
-    ['--runtime', 'nodejs', '--modules', TEXT_MODULE, '--port', '8095', '--httpPort', '8096'],
-    { cwd: PROJECT_ROOT, windowsHide: true }
-  );
+  console.log('[Phase 3 E2E] Starting Graftcode Gateway B (Node.js TextPipelineService) on port 8095...');
+  supervisor.startGatewayB(8095, 8096);
 
   try {
     console.log('[Phase 3 E2E] Waiting for gateways to become ready...');
+    const ready = await supervisor.waitForAllReady('graft', 60000);
+    if (!ready) {
+      throw new Error('Gateways did not become ready in time.');
+    }
+
     const speechClient = new GraftSpeechClient();
     const textClient = new GraftTextClient();
 
     let gatewaysReady = false;
-    for (let i = 0; i < 35; i++) {
+    for (let i = 0; i < 15; i++) {
       try {
         const healthA = await speechClient.isReady();
         const healthB = await textClient.health();
         if (healthA && healthA.ready && healthB && healthB.ready) {
           gatewaysReady = true;
-          console.log('[Phase 3 E2E] Both Gateway A and Gateway B are ready over Graftcode RPC!');
+          console.log('[Phase 3 E2E] Both Gateway A (Python) and Gateway B (Node.js) are ready over Graftcode RPC!');
           break;
         }
       } catch (_) {}
@@ -56,11 +64,20 @@ async function main() {
     }
 
     if (!gatewaysReady) {
-      throw new Error('Gateways did not become ready in time.');
+      throw new Error('Gateways did not report healthy in time.');
     }
 
-    // 1. Test Gateway B Text Pipeline via Graftcode RPC
-    console.log('[Phase 3 E2E] Testing Text Pipeline over Graftcode RPC...');
+    // 1. speech transcription over rpc
+    console.log('[Phase 3 E2E] Testing Speech Transcription over Graftcode RPC (Gateway A)...');
+    const wavBuf = createSineWavBuffer(1.0);
+    const sttRes = await speechClient.transcribe(wavBuf);
+    console.log(`[Phase 3 E2E] Gateway A transcribe result: duration=${sttRes.duration}s, language=${sttRes.language}, text="${sttRes.text}"`);
+    if (typeof sttRes.duration !== 'number' || sttRes.duration <= 0) {
+      throw new Error(`Expected valid duration from Gateway A transcribe, got: ${JSON.stringify(sttRes)}`);
+    }
+
+    // 2. text normalization via rpc
+    console.log('[Phase 3 E2E] Testing Text Pipeline over Graftcode RPC (Gateway B)...');
     const rawTranscript =
       'um uh hello comma please charge my card 4532 0151 1283 0366 period send receipt to :email exclamation mark';
     const cleanResult = await textClient.process(rawTranscript, {
@@ -77,7 +94,7 @@ async function main() {
       throw new Error('Expected filler words to be removed by Gateway B');
     }
 
-    // 2. Test MCP CleanTextJson static method over Graftcode
+    // 3. mcp clean text tool call
     console.log('[Phase 3 E2E] Testing MCP CleanTextJson static method...');
     const mcpClean = await textClient.cleanTextJson('um I need to buy milk period');
     console.log(`[Phase 3 E2E] MCP Clean Result: "${mcpClean}"`);
@@ -85,12 +102,10 @@ async function main() {
       throw new Error(`Expected "I need to buy milk.", got "${mcpClean}"`);
     }
 
-    console.log('[Phase 3 E2E] ALL PHASE 3 PIPELINE & GRAFTCODE TESTS PASSED! \u2713');
+    console.log('[Phase 3 E2E] ALL PHASE 3 PIPELINE & GRAFTCODE TESTS PASSED! [OK]');
   } finally {
     console.log('[Phase 3 E2E] Cleaning up background processes...');
-    try { execSync(`taskkill /pid ${gatewayBProc.pid} /T /F`, { stdio: 'ignore' }); } catch (_) {}
-    try { execSync(`taskkill /pid ${gatewayAProc.pid} /T /F`, { stdio: 'ignore' }); } catch (_) {}
-    try { execSync(`taskkill /pid ${pythonProc.pid} /T /F`, { stdio: 'ignore' }); } catch (_) {}
+    supervisor.stopAll();
   }
 }
 

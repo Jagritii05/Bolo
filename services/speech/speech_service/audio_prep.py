@@ -3,8 +3,12 @@ import wave
 import subprocess
 import tempfile
 from typing import Tuple
-from .errors import InvalidAudioException, AudioTooLongException
-from .config import MAX_AUDIO_SECONDS, MAX_AUDIO_MB, TEMP_DIR, FFMPEG_PATH
+try:
+    from .errors import InvalidAudioException, AudioTooLongException
+    from .config import MAX_AUDIO_SECONDS, MAX_AUDIO_MB, TEMP_DIR, FFMPEG_PATH
+except ImportError:
+    from speech_service.errors import InvalidAudioException, AudioTooLongException
+    from speech_service.config import MAX_AUDIO_SECONDS, MAX_AUDIO_MB, TEMP_DIR, FFMPEG_PATH
 
 def validate_audio_file(file_path: str) -> int:
     """Validate that audio file exists and is within size limits."""

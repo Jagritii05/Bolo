@@ -209,7 +209,7 @@ export function translateError(exc) {
  */
 export async function connect(endpoint) {
   if (typeof endpoint === 'string' && endpoint.includes(':8085')) {
-    const { GraftConfig } = await import('@graft/npm-speech-gateway');
+    const { GraftConfig } = await import('@graft/pypi-speech-gateway');
     GraftConfig.host = endpoint.startsWith('ws') ? endpoint : `ws://${endpoint}/ws`;
     GraftConfig.stateless = true;
     isSpeechConfigured = true;

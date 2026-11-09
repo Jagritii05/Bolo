@@ -37,8 +37,7 @@ console.log('====================================================');
 console.log(' LocalPill Phase 4 Reliability & Error UX Tests');
 console.log('====================================================\n');
 
-// 1. Error Mapping Table
-// ─────────────────────────────────────────────────────────────
+// 1. error mapping table
 console.log('--- Testing Error Mapping Table ---');
 
 test('Row 1: Gateway not up yet maps to GATEWAY_NOT_READY', () => {
@@ -135,9 +134,7 @@ test('Row 10: PathNotAllowedException maps to PATH_NOT_ALLOWED', () => {
   assert.equal(res.message, 'Path not allowed outside designated recordings folder.');
 });
 
-// ─────────────────────────────────────────────────────────────
-// 2. Supervisor Backoff Logic Unit Tests
-// ─────────────────────────────────────────────────────────────
+// 2. supervisor backoff logic
 console.log('\n--- Testing Supervisor Backoff Logic ---');
 
 test('Supervisor backoff schedule follows [1000, 2000, 5000, 10000]', () => {
@@ -211,9 +208,7 @@ test('Supervisor does not restart when process is stopped intentionally', () => 
   assert.equal(restarted, false);
 });
 
-// ─────────────────────────────────────────────────────────────
-// 3. Temp File Cleaner Unit Tests
-// ─────────────────────────────────────────────────────────────
+// 3. temp file cleaner
 console.log('\n--- Testing Temp File Cleaner ---');
 
 test('Temp cleaner sweeps and deletes orphaned audio files while preserving others', () => {
@@ -237,9 +232,7 @@ test('Temp cleaner sweeps and deletes orphaned audio files while preserving othe
   }
 });
 
-// ─────────────────────────────────────────────────────────────
-// 4. Live Gateway Recovery Integration Test
-// ─────────────────────────────────────────────────────────────
+// 4. live gateway recovery
 console.log('\n--- Testing Live Gateway Death & Recovery ---');
 
 await asyncTest('Supervisor starts Gateway B, survives termination, and recovers automatically', async () => {

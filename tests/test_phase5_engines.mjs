@@ -24,21 +24,16 @@ console.log('====================================================\n');
 const supervisor = new ProcessSupervisor();
 
 try {
-  // 1. Ensure Python STT server and Gateway A are running
-  supervisor.startRestServer(7777);
+  // 1. Ensure Gateway A (Python runtime hosting SpeechService directly) is running
   supervisor.startGatewayA(8085, 8086);
 
-  console.log('Waiting for STT and Gateway A services to be ready...');
-  const readySTT = await supervisor.waitForReady('rest-server', 25000);
-  assert.equal(readySTT, true, 'STT server should be ready on 7777');
-  const readyA = await supervisor.waitForReady('gateway-a', 25000);
+  console.log('Waiting for Gateway A (Python SpeechService) to be ready...');
+  const readyA = await supervisor.waitForReady('gateway-a', 60000);
   assert.equal(readyA, true, 'Gateway A should be ready on 8085');
 
   const graftClient = new GraftSpeechClient();
 
-  // ─────────────────────────────────────────────────────────
-  // 1. List Engines Verification over Graftcode
-  // ─────────────────────────────────────────────────────────
+  // 1. list engines over rpc
   await asyncTest('GraftSpeechClient lists available engines over Graftcode RPC', async () => {
     const engines = await graftClient.listEngines();
     assert.ok(Array.isArray(engines), 'Engines should be an array');
@@ -58,9 +53,7 @@ try {
     assert.ok(base.device === 'cpu' || base.device === 'cuda', 'Device should be auto-detected');
   });
 
-  // ─────────────────────────────────────────────────────────
-  // 2. Dynamic Engine Swapping: whisper-base <-> whisper-tiny
-  // ─────────────────────────────────────────────────────────
+  // 2. test engine swapping
   await asyncTest('Dynamic swap to whisper-tiny via GraftSpeechClient', async () => {
     const res = await graftClient.setEngine('whisper-tiny');
     assert.ok(res.success, 'Engine swap to whisper-tiny should succeed');
@@ -79,9 +72,7 @@ try {
     assert.equal(health.engine, 'whisper-base');
   });
 
-  // ─────────────────────────────────────────────────────────
-  // 3. Engine unavailable validation
-  // ─────────────────────────────────────────────────────────
+  // 3. invalid engine error handling
   await asyncTest('Requesting invalid or unavailable engine raises error via GraftSpeechClient', async () => {
     try {
       await graftClient.setEngine('mlx-granite');

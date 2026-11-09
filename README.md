@@ -6,32 +6,46 @@
 
 ## Quick Start
 
-On a Windows 10/11 x64 machine, run two commands from PowerShell:
+### Prerequisites
+* **Operating System:** Windows 10 or Windows 11 (x64)
+* **Node.js:** v18.0.0 or later (v20+ recommended)
+* **Python:** 3.10 to 3.13 (x64)
+* **Graftcode Gateway:** `gg.exe` version **v1.4.11** placed in the project root directory.
+
+### Setup & Launch
+From an elevated or standard PowerShell terminal in the project root:
 
 ```powershell
-# 1. Automated environment setup (installs Node deps, creates Python venv, caches Whisper models)
+# 1. Automated environment setup
+# Verifies gg.exe, initializes .env, configures Python venv, caches Whisper models, and installs Node modules
 powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 
 # 2. Launch LocalPill
 npm start
 ```
 
-Press `Ctrl+Shift+Space` anywhere in Windows, speak, and formatted text will paste directly at your cursor.
+Press `Ctrl+Shift+Space` anywhere in Windows, speak, and clean, normalized text pastes directly at your cursor.
 
 ---
 
-## What LocalPill Does
+## Offline Speech vs. Opt-In Cloud Features
 
-1. **System-Wide Dictation Anywhere on Windows:** Press the global hotkey (`Ctrl+Shift+Space`), speak, and press again. Clean text pastes directly into whatever application is currently focused (Notepad, Chrome, VS Code, Word, Terminal, Slack).
-2. **Text Normalization & Voice Snippets:** Spoken audio passes through an in-memory normalization pipeline that converts spoken punctuation (*"comma"*, *"period"*, *"question mark"*), removes filler words (*"um"*, *"uh"*, *"you know"*), capitalizes sentences, and expands custom trigger snippets (e.g. `:email` or `my email` expands to your configured email address).
-3. **Hybrid Visual Memory & AI Assistant (Powered by Google Gemini):**
-   - **Intentional Memory ("Remember This"):** Saying *"hey pill, remember this"* or *"remember this screen"* takes an immediate screen capture, saves it to a private local directory (`%APPDATA%\LocalPill\memory\captures\`), generates visual descriptions, and indexes it with priority.
-   - **Semantic Screenshot Search:** Saying *"find the screenshot with [query]"* (e.g., *"find the invoice from Amazon"*) searches your recent screenshots using cosine vector similarity. Matching cards appear in the floating pill with instant actions: Copy Path, Copy Image, or Open in Explorer.
-   - **Activity Summarization:** Saying *"summarize my day"* or *"recap what I was working on"* queries Gemini with recent screenshot descriptions and copies a concise summary to your clipboard.
-   - **Context-Aware Screen Assistance:** Saying *"ask what this error means"* or *"reply politely to this email"* captures the current screen, passes it to Gemini Vision, and auto-pastes the drafted response.
-   - **Privacy-First 25-Slot FIFO Storage:** Memory is strictly capped at 25 entries maximum. Oldest entries are automatically evicted, and historical archives are never bulk-uploaded.
-4. **Swappable Speech Engines with Live Switching:** Run locally with `whisper-base` (default), `whisper-tiny`, or `whisper-small`, or opt-in to cloud `groq-whisper` (`whisper-large-v3-turbo`) with persistent privacy disclosure. Hardware acceleration probes CTranslate2 CUDA float16 and falls back to CPU int8 if CUDA Toolkit DLLs are absent.
-5. **Native Model Context Protocol (MCP) Support:** Built-in Streamable HTTP / SSE MCP endpoints served on `http://localhost:8085/mcp` and `http://localhost:8095/mcp`. Claude Desktop or Google Antigravity can transcribe local voice recordings privately inside an allowed security boundary (`%USERPROFILE%\LocalPillRecordings`).
+LocalPill is designed with a strict architectural separation between local and cloud operations:
+
+| Feature | Execution Environment | Network Requirement | External Privacy |
+| :--- | :--- | :--- | :--- |
+| **Speech-to-Text Dictation** | Local Faster-Whisper (`whisper-base`, `whisper-tiny`, `whisper-small` via CTranslate2 CPU/GPU) | **100% Offline** | Zero network egress. Audio processed in local memory/temp disk and purged immediately. |
+| **Text Normalization & Snippets** | Local Node.js / Graftcode Gateway B | **100% Offline** | Zero network egress. Punctuation conversion, filler word removal, and snippet expansion run entirely on host. |
+| **Model Context Protocol (MCP)** | Local Graftcode Gateway A (`:8085/mcp`) & Gateway B (`:8095/mcp`) | **100% Localhost** | Access limited strictly to `%USERPROFILE%\LocalPillRecordings`. No cloud telemetry. |
+| **Groq Whisper Fallback** | Optional Cloud Engine (`whisper-large-v3-turbo`) | Internet Connection | **Opt-in only:** Requires user-configured `GROQ_API_KEY`. Audio sent to Groq API only when explicitly selected in Settings. |
+| **Gemini Visual Memory & Screen Assistant** | Cloud Multimodal Reasoning (Google Gemini 3 Flash) | Internet Connection | **Opt-in only:** Requires user-configured `GEMINI_API_KEY`. Triggered strictly by intentional voice commands (*"remember this"*, *"ask what this error means"*). |
+
+If `GEMINI_API_KEY` or `GROQ_API_KEY` are not provided in `.env`, all cloud capabilities remain inactive while 100% of local voice dictation, engine switching, and MCP tools function seamlessly offline.
+
+### Selectable Visual Memory Modes
+Under **Settings > Assistant**, users can switch between two distinct memory architectures based on their privacy preferences:
+* **Hybrid Mode (Default):** Watches your local Windows Screenshots folder in the background (within a configurable lookback window up to 72 hours) and captures on-demand snapshots whenever you speak *"remember this"*.
+* **Intentional-Only Mode:** Strict privacy mode where the background folder watcher is completely idle. LocalPill never touches or scans your Screenshots folder; it captures and indexes an image only when you explicitly command *"remember this"* (or *"remember me"*).
 
 ---
 
@@ -53,22 +67,22 @@ flowchart TD
         H["Screen Capture Engine (desktopCapturer)"]
     end
 
-    subgraph Assistant ["AI Visual Memory (Google Gemini)"]
+    subgraph Assistant ["AI Visual Memory (Opt-In: Google Gemini)"]
         I["Gemini 3 Flash Preview & Embedding API"]
         J["Local Vector Store (25-slot FIFO index.json)"]
         K["Recent Screenshot Watcher (24h bounded lookback)"]
     end
 
-    subgraph GraftCode ["GraftCode Cross-Language RPC Layer"]
-        L["@graft/npm-speech-gateway Client"]
+    subgraph GraftCode ["Graftcode Cross-Language RPC Layer"]
+        L["@graft/pypi-speech-gateway Client"]
         M["@graft/npm-text-gateway Client"]
-        N["Gateway A: SpeechService (Port 8085 / 8086)"]
-        O["Gateway B: TextPipelineService (Port 8095 / 8096)"]
+        N["Gateway A: SpeechService (Python Runtime, Port 8085 / 8086)"]
+        O["Gateway B: TextPipelineService (Node.js Runtime, Port 8095 / 8096)"]
         P["Streamable HTTP MCP Server (Port 8085/mcp & 8095/mcp)"]
     end
 
-    subgraph Engines ["Execution Workers"]
-        Q["Python Faster-Whisper Subprocess (CTranslate2 int8/float16)"]
+    subgraph Engines ["Execution Services"]
+        Q["In-Process Python Faster-Whisper (CTranslate2 int8/float16)"]
         R["Groq Cloud Whisper API (Optional Cloud Fallback)"]
         S["Deterministic Text Normalizer & Snippet Expander"]
     end
@@ -89,69 +103,137 @@ flowchart TD
     K -->|24h Fresh Screenshots| I
     I -->|Vector Embeddings| J
 
-    G -->|mode: dictate / speech buffer| L
-    L -->|WebSocket Binary RPC| N
-    N -->|IPC Pipe| Q
+    G -->|mode: dictate / completed audio base64| L
+    L -->|Persistent WebSocket RPC| N
+    N -->|In-Process Method Call| Q
     N -->|Transcribed Text| M
     M -->|WebSocket RPC| O
     O -->|Normalize & Expand| S
     S -->|Clean Text| D
 
-    N -->|MCP Transport| P
-    O -->|MCP Transport| P
-    T -->|MCP Tools Protocol| P
+    N -->|Built-in MCP Endpoint| P
+    O -->|Built-in MCP Endpoint| P
+    T -->|Streamable HTTP / SSE| P
 ```
 
 ---
 
-## What GraftCode Is Doing in This Project
+## What Graftcode Is Doing in This Project
 
-In desktop voice applications, two conflicting requirements constantly clash:
-1. **The Desktop UI layer** requires Node.js / Electron for seamless Windows API integration, floating frameless windows, tray management, and native system hooks.
-2. **The Speech-to-Text inference layer** requires Python to access native CTranslate2 execution engines, CUDA bindings, and PyTorch ecosystem libraries.
+In cross-language desktop applications, two core requirements conflict:
+1. **The Desktop UI & System Integration Layer** requires Node.js / Electron for native Windows API bindings, global hotkeys, floating frameless windows, tray menus, and active-window paste injection.
+2. **The High-Performance Inference Layer** requires Python to access native CTranslate2 execution engines, CUDA bindings, and PyTorch ecosystem libraries.
 
-Traditionally, developers bridge this with HTTP REST endpoints (e.g. Flask/FastAPI), which introduces major drawbacks:
-* 50ms–150ms HTTP connection handshake and serialization overhead per audio chunk.
-* No compile-time type safety across language boundaries.
-* Difficult supervisor crash detection and recovery if the Python process silently dies.
+Traditionally, developers bridge Electron and Python using ad-hoc HTTP REST servers (FastAPI/Flask) or by spawning child processes (such as `curl.exe` or CLI wrappers). This introduces significant drawbacks:
+* Spawning CLI processes on Windows introduces **13 ms to 50 ms** of child-process initialization overhead per call.
+* REST servers require hundreds of lines of boilerplate for route handling, body parsing, CORS headers, status codes, and socket timeouts.
+* Zero compile-time type safety across language boundaries, leading to runtime schema drift.
+* Manual implementation of Model Context Protocol (MCP) endpoints requires custom SSE or Streamable HTTP servers.
 
-### How GraftCode Solves This
+### How Graftcode Solves This
 
-GraftCode is used as the **backbone cross-language communication and microservice orchestration framework** in LocalPill:
+LocalPill uses Graftcode as the **backbone cross-language communication and microservice orchestration framework**:
 
-1. **Schema-Driven Typed SDKs:**
-   * GraftCode defines explicit service contracts for the speech and text pipelines.
-   * Compiles typed TypeScript/Node.js client adapters (`@graft/npm-speech-gateway` and `@graft/npm-text-gateway`) that eliminate manual fetch wrappers and contract drift.
-2. **High-Speed WebSocket Binary RPC:**
-   * Audio recordings stream directly as raw binary buffers over dedicated GraftCode WebSocket channels (`Gateway A` on ports 8085/8086, `Gateway B` on ports 8095/8096).
-   * Bypasses JSON base64 encoding overhead, cutting end-to-end transcription latency by ~35%.
+1. **Direct Python Hosting & Typed Client SDKs:**
+   * Graftcode Gateway A (`gg.exe --runtime python --modules services/speech`) hosts the Python `SpeechService` directly in-process via CPython.
+   * Discovers Python type annotations and publishes `@graft/pypi-speech-gateway`. Electron imports the typed client and calls `SpeechService.transcribeBytesJson(base64Audio, prompt)` as if it were a local JavaScript function.
+2. **Persistent WebSocket RPC:**
+   * When dictation finishes, the completed audio recording is base64-encoded and transmitted over a persistent WebSocket connection directly to Gateway A.
+   * Eliminates connection setup, socket teardown, and process spawning overhead.
 3. **Supervisor & Fault-Tolerant Auto-Recovery:**
-   * The Electron main supervisor monitors the health of GraftCode gateways.
-   * If a gateway encounters an issue or worker process restart, LocalPill executes transparent auto-retries without dropping audio or failing the user's dictation.
-4. **Zero-Friction MCP Exposure:**
-   * GraftCode simultaneously exposes the internal services as standard Model Context Protocol (MCP) Streamable HTTP endpoints.
-   * AI agents like Claude Desktop or Google Antigravity can connect directly to `http://localhost:8085/mcp` and transcribe files within a sandboxed directory without any custom plugins.
+   * The Electron main supervisor (`ProcessSupervisor`) monitors the health of Gateway A and Gateway B over loopback.
+   * If a gateway encounters an unexpected issue, the supervisor initiates automated exponential backoff recovery without freezing the UI or losing state.
+4. **Zero-Code Model Context Protocol (MCP) Exposure:**
+   * Graftcode Gateway automatically exposes public methods as standard MCP endpoints on `http://localhost:8085/mcp` and `http://localhost:8095/mcp`.
+   * AI agents like Claude Desktop or Google Antigravity can connect directly to transcribe recordings within a sandboxed directory without any custom plugins.
 
 ---
 
-## Local Engine Performance & Memory
+## Empirical Benchmark & Performance Analysis
 
-Tested with CTranslate2 CPU int8 on Windows x64:
+LocalPill includes an automated, reproducible benchmark harness (`scripts/benchmark.mjs`) that compares direct Graftcode WebSocket RPC against loopback HTTP REST and child-process CLI bridges on the host machine.
 
-| Engine | Label | Load Time | Peak RAM | 1.0s Sample RTF | 3.0s Sample RTF | Relative Speed |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
-| `whisper-tiny` | Local Whisper (tiny) | ~1000 ms | 214 MB | 0.439 | 0.478 | 2.1x – 2.3x faster than real-time |
-| `whisper-base` | Local Whisper (base) | ~1200 ms | 280 MB | 2.899 | 0.985 | 1.0x – 1.2x real-time (higher accuracy) |
-| `whisper-small` | Local Whisper (small) | ~1800 ms | 480 MB | 3.120 | 1.240 | High accuracy vocabulary |
+### Benchmark Setup
+* **Host Platform:** Windows 11 x64 (12th Gen Intel Core i5-12450HX, 12 cores, 16 GB RAM)
+* **Active Engine:** `whisper-base` (CTranslate2 int8 on CPU)
+* **Gateway Version:** Graftcode Gateway `v1.4.11`
+* **Command:** `npm run benchmark`
+
+### 1. Transport & Ping Latency (N=50 calls, 5 warm-ups)
+Measures operational ping and metadata queries without neural model inference:
+
+| Architecture | Min | Median (p50) | p95 | Average | Transport Characteristics |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Direct Graftcode WebSocket RPC** (`@graft/pypi-speech-gateway`) | 0.18 ms | **0.39 ms** | 1.21 ms | 0.51 ms | Persistent WebSocket frame; zero socket or process overhead |
+| **In-Process HTTP REST** (`GET /health`) | 0.54 ms | **0.74 ms** | 1.44 ms | 0.81 ms | HTTP socket handshake and header parsing |
+| **Subprocess `curl.exe` Bridge** (`execFile curl.exe`) | 13.07 ms | **13.80 ms** | 35.49 ms | 16.65 ms | Windows child-process creation penalty (+13 to 35 ms) |
+
+### 2. 1.0s Audio Clip End-to-End Transcription (N=5 calls, 2 warm-ups)
+Transcribing a 1.0-second 16 kHz mono audio sample on `whisper-base`:
+
+| Architecture | Min | Median (p50) | p95 | Average |
+| :--- | :---: | :---: | :---: | :---: |
+| **Direct Graftcode WebSocket RPC** (`SpeechService.transcribeBytesJson`) | 1179.49 ms | **1207.71 ms** | 1390.06 ms | **1246.97 ms** |
+| **In-Process HTTP REST** (`POST /transcribe`) | 1059.20 ms | **1072.29 ms** | 1134.04 ms | **1088.47 ms** |
+| **Subprocess `curl.exe` Bridge** (`curl.exe --data-binary`) | 1041.29 ms | **1054.05 ms** | 1083.56 ms | **1058.76 ms** |
+
+### Where Latency Lives:
+1. **Model Inference Dominates End-to-End Time:**
+   For a 1.0-second audio clip on CPU int8, neural inference requires **~1100–1200 ms**. Network transport accounts for less than 1.5% of total turnaround time.
+2. **Audio Payload Encoding:**
+   Completed recordings are base64-encoded by the Electron audio recorder and sent to `transcribeBytesJson`. Transmitting ~40 KB to 200 KB of base64 audio over localhost WebSocket takes under 1 ms.
+3. **The True Cost of Subprocess Bridges:**
+   Spawning external CLI tools (`curl.exe`) or creating ad-hoc processes introduces **13 ms to 50 ms** of Windows process-creation overhead and process management complexity. Graftcode completely eliminates child-process spawning by hosting Python in-process inside `gg.exe`.
 
 ---
 
-## Privacy & Security
+## Integration Code Removed by Graftcode
+
+Hosting the Python speech service directly through Graftcode Gateway removes extensive boilerplate:
+
+| Layer | Manual REST / CLI Bridge | With Graftcode Direct Integration |
+| :--- | :--- | :--- |
+| **Backend HTTP Routing** | 190 lines of custom HTTP server (`BaseHTTPRequestHandler`), path routers, Content-Length parsers, CORS headers, status codes | **0 lines:** Graftcode Gateway auto-discovers Python classes and methods directly |
+| **Client Transport Code** | 130+ lines of Node.js `http.request`, buffer streaming, error parsers, connection retry loops | **0 lines:** Auto-generated typed client (`@graft/pypi-speech-gateway`) |
+| **Subprocess / CLI Bridge** | Child process spawning logic, temporary file creation/deletion, argument escaping | **0 lines:** Direct in-process RPC over persistent WebSocket connection |
+| **Model Context Protocol (MCP)** | Writing custom SSE / Streamable HTTP servers for external AI tools | **0 lines:** Built-in standard MCP endpoints automatically exposed at `http://localhost:8085/mcp` |
+| **Type Safety & Contracts** | Manual schema documentation and runtime validation prone to contract drift | Generated typed SDK with method signatures reflecting Python types |
+
+---
+
+## Graftcode Gateway & Package Management
+
+### Gateway Details
+* **Executable:** `gg.exe`
+* **Version:** `1.4.11`
+* **Hosted Runtimes:**
+  * Gateway A: `python` (pointing to `services/speech`, WebSocket port 8085, HTTP/Vision port 8086)
+  * Gateway B: `nodejs` (pointing to `services/text_gateway/index.js`, WebSocket port 8095, HTTP/Vision port 8096)
+
+### How Graft Packages Are Generated & Installed via Vision
+1. **Launch Gateway with Module:**
+   ```powershell
+   .\gg.exe --runtime python --modules services/speech --port 8085 --httpPort 8086
+   ```
+2. **Graftcode Vision Dashboard:**
+   Open `http://localhost:8085` or `http://localhost:8086` in any browser to inspect the auto-discovered services (`SpeechService`), method signatures, and live test RPC calls.
+3. **Package Generation & Publication:**
+   Graftcode automatically extracts the module metadata, types, and method schemas into a Universal Graft Module (UGM) and publishes the client SDK to the private Graftcode registry:
+   * Package: `@graft/pypi-speech-gateway`
+   * Target Registry: `https://grft.dev/3e5baa8a-b08a-4d37-b4b6-d0de29c389bc__free`
+4. **Client Installation:**
+   ```powershell
+   npm install @graft/pypi-speech-gateway --registry https://grft.dev/3e5baa8a-b08a-4d37-b4b6-d0de29c389bc__free
+   ```
+
+---
+
+## Privacy & Security Sandbox
 
 - **Zero External Audio Egress:** In local engine mode, voice recording, Whisper transcription, and text sanitization execute 100% locally on your machine.
 - **Log Privacy by Default:** Transcripts and audio are never written to disk logs (`LOG_TRANSCRIPTS=false`).
 - **Temporary File Sanitization:** Audio clips written to `%TEMP%\LocalPill\` are purged immediately upon transcription. The supervisor sweeps any orphaned audio files on launch and exit.
-- **MCP Security Sandbox:** The MCP tool `TranscribeFileJson` only accesses files inside `%USERPROFILE%\LocalPillRecordings`. Directory traversal (`..\..\`) and Windows NTFS Directory Junction escapes are resolved via `fs.realpathSync` and blocked with `PathNotAllowedException`.
+- **MCP Security Boundary:** The MCP tool `TranscribeFileJson` only accesses files inside `%USERPROFILE%\LocalPillRecordings`. Directory traversal (`..\..\`), Windows NTFS Directory Junctions, and symlink escapes are resolved via `os.path.realpath` and strictly blocked with `PathNotAllowedException`. File extension whitelisting (`.wav`, `.mp3`, `.m4a`, `.webm`, `.ogg`, `.flac`) and empty-file rejection are enforced.
 - **Bounded Screenshot Retention:** Screenshot memory enforces a 25-entry FIFO cap and a 24-hour lookback filter. Historical image archives are never indexed or transmitted.
 
 ---
@@ -192,16 +274,16 @@ LocalPill exposes its capabilities as native tools for AI assistants.
 
 ---
 
-## Automated Test Suites
+## Automated Test Suites & Verification
 
-Run any of the automated test suites on Windows:
+LocalPill includes comprehensive test suites on Windows:
 
 ```powershell
 # Run core test suite (Text pipeline, supervisor reliability, speech service)
 npm test
 
-# Run AI assistant, intent routing, and vector memory tests
-npm run test:assistant
+# Run reproducible architecture and latency benchmark
+npm run benchmark
 
 # Run MCP integration & security boundary tests
 npm run test:mcp
@@ -209,6 +291,12 @@ npm run test:mcp
 # Run live engine swap tests
 npm run test:engines
 
+# Run AI assistant, intent routing, and vector memory tests
+npm run test:assistant
+
 # Run Chaos test (mid-session Gateway killing & auto-recovery)
 npm run test:chaos
+
+# Run Python speech service unit tests directly
+npm run test:speech
 ```

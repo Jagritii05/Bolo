@@ -45,6 +45,78 @@ export class ProcessSupervisor extends EventEmitter {
     return process.platform === 'win32' ? 'python.exe' : 'python3';
   }
 
+  getPythonGatewayEnv(extraEnv = {}) {
+    const srcSite = path.join(PROJECT_ROOT, 'services', 'speech', 'sitecustomize.py');
+    const dstSiteDir = path.join(PROJECT_ROOT, '.venv', 'Lib', 'site-packages');
+    if (fs.existsSync(srcSite) && fs.existsSync(dstSiteDir)) {
+      try {
+        fs.copyFileSync(srcSite, path.join(dstSiteDir, 'sitecustomize.py'));
+      } catch (_) {}
+    }
+
+    const localPythonDll = path.join(PROJECT_ROOT, 'python313.dll');
+    const localPython3Dll = path.join(PROJECT_ROOT, 'python3.dll');
+
+    // Ensure python3.dll is present next to gg.exe for C-extension Limited ABI dependencies
+    if (!fs.existsSync(localPython3Dll)) {
+      const candidatePaths = [
+        path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python313', 'python3.dll'),
+        'C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.13_3.13.3824.0_x64__qbz5n2kfra8p0\\python3.dll',
+      ];
+      for (const p of candidatePaths) {
+        if (fs.existsSync(p)) {
+          try {
+            fs.copyFileSync(p, localPython3Dll);
+            break;
+          } catch (_) {}
+        }
+      }
+    }
+
+    const bundledFfmpeg = path.join(
+      PROJECT_ROOT,
+      'node_modules',
+      'ffmpeg-static',
+      process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+    );
+
+    const pythonPaths = [
+      path.join(PROJECT_ROOT, '.graftcode', '1.4.11', 'Binaries', 'Python'),
+      path.join(PROJECT_ROOT, '.graftcode', '1.4.11', 'GMA', 'python'),
+      path.join(PROJECT_ROOT, '.venv', 'Lib', 'site-packages'),
+      path.join(PROJECT_ROOT, 'services', 'speech'),
+    ];
+    if (process.env.PYTHONPATH) {
+      pythonPaths.push(process.env.PYTHONPATH);
+    }
+
+    const extraDllPaths = [
+      PROJECT_ROOT,
+      path.join(PROJECT_ROOT, '.venv', 'Lib', 'site-packages', 'av.libs'),
+      path.join(PROJECT_ROOT, '.venv', 'Lib', 'site-packages', 'ctranslate2'),
+      path.join(PROJECT_ROOT, '.venv', 'Lib', 'site-packages', 'numpy.libs'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'Python', 'Python313'),
+    ].filter((p) => fs.existsSync(p));
+
+    const curPath = process.env.PATH || '';
+    const newPath = [...extraDllPaths, curPath].join(path.delimiter);
+
+    const env = {
+      ...process.env,
+      PATH: newPath,
+      PYTHONUNBUFFERED: '1',
+      PYTHONPATH: pythonPaths.join(path.delimiter),
+      FFMPEG_PATH: fs.existsSync(bundledFfmpeg) ? bundledFfmpeg : (process.env.FFMPEG_PATH || 'ffmpeg'),
+      ...extraEnv,
+    };
+
+    if (process.platform === 'win32' && fs.existsSync(localPythonDll) && !env.HYPERTUBE_PYTHON_RUNTIME_PATH) {
+      env.HYPERTUBE_PYTHON_RUNTIME_PATH = localPythonDll;
+    }
+
+    return env;
+  }
+
   _handleProcessExit(name, code, restartFn) {
     const state = this.getState(name);
     this.processes.delete(name);
@@ -144,17 +216,18 @@ export class ProcessSupervisor extends EventEmitter {
     state.lastStartTime = Date.now();
 
     const ggExe = path.join(PROJECT_ROOT, 'gg.exe');
-    const modulePath = path.join(PROJECT_ROOT, 'services', 'speech_gateway', 'index.js');
+    const modulePath = path.join(PROJECT_ROOT, 'services', 'speech');
 
-    logger.info(`Starting Graftcode Gateway A on ws:${wsPort} http:${httpPort}...`);
+    logger.info(`Starting Graftcode Gateway A (Python runtime) on ws:${wsPort} http:${httpPort}...`);
 
     const child = spawn(ggExe, [
-      '--runtime', 'nodejs',
+      '--runtime', 'python',
       '--modules', modulePath,
       '--port', String(wsPort),
       '--httpPort', String(httpPort)
     ], {
       cwd: PROJECT_ROOT,
+      env: this.getPythonGatewayEnv(),
       windowsHide: true,
       stdio: ['ignore', 'pipe', 'pipe']
     });
@@ -356,25 +429,21 @@ export class ProcessSupervisor extends EventEmitter {
   /**
    * Wait for all required services
    */
-  async waitForAllReady(transport = 'graft', timeoutMs = 25000) {
-    const start = Date.now();
+  async waitForAllReady(transport = 'graft', timeoutMs = 45000) {
     logger.info(`[Supervisor] Waiting for all services to become ready (transport: ${transport})...`);
 
-    // STT Python server is needed in both modes
+    if (transport === 'graft') {
+      const [gwA, gwB] = await Promise.all([
+        this.waitForReady('gateway-a', timeoutMs),
+        this.waitForReady('gateway-b', timeoutMs),
+      ]);
+      return gwA && gwB;
+    }
+
     const sttReady = await this.waitForReady('rest-server', timeoutMs);
     if (!sttReady) {
       logger.warn('[Supervisor] STT server failed to report ready within timeout.');
     }
-
-    if (transport === 'graft') {
-      const remainingMs = Math.max(1000, timeoutMs - (Date.now() - start));
-      const [gwA, gwB] = await Promise.all([
-        this.waitForReady('gateway-a', remainingMs),
-        this.waitForReady('gateway-b', remainingMs),
-      ]);
-      return gwA && gwB && sttReady;
-    }
-
     return sttReady;
   }
 

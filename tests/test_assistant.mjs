@@ -7,7 +7,7 @@ import { MemoryStore, cosine } from '../src/main/assistant/memory-store.js';
 
 console.log('[Test] Running Assistant & Memory Store Unit Tests...');
 
-// ── 1. Intent Detection ──────────────────────────────────────────────────────
+// 1. intent detection
 const findTest1 = detectIntent('find the invoice from amazon');
 assert.strictEqual(findTest1.mode, 'find');
 assert.strictEqual(findTest1.query, 'the invoice from amazon');
@@ -25,6 +25,16 @@ assert.strictEqual(remTest1.mode, 'remember');
 
 const remTest2 = detectIntent('remember this screen');
 assert.strictEqual(remTest2.mode, 'remember');
+
+const remTestHappy = detectIntent('Happy, remember this screen.');
+assert.strictEqual(remTestHappy.mode, 'remember');
+
+const remTestPlease = detectIntent('Please remember this screen');
+assert.strictEqual(remTestPlease.mode, 'remember');
+
+const remTestMe = detectIntent('remember me');
+assert.strictEqual(remTestMe.mode, 'remember');
+assert.strictEqual(remTestMe.query, '');
 
 const remTest3 = detectIntent('save to memory: project architecture');
 assert.strictEqual(remTest3.mode, 'remember');
@@ -48,6 +58,23 @@ const askTest3 = detectIntent('hey pill what does this error mean?');
 assert.strictEqual(askTest3.mode, 'ask');
 assert.strictEqual(askTest3.query, 'what does this error mean');
 
+// memory queries
+const memQ1 = detectIntent('Explain the steps of the program that I asked you to remember');
+assert.strictEqual(memQ1.mode, 'query_memory');
+assert.ok(memQ1.query.includes('Explain the steps of the program'));
+
+const memQ2 = detectIntent('Summarize the screen that I asked you to remember, or viewer.');
+assert.strictEqual(memQ2.mode, 'query_memory');
+
+const memQ3 = detectIntent('What was the error on that screen?');
+assert.strictEqual(memQ3.mode, 'query_memory');
+
+const memQ4 = detectIntent('From memory, what is the API key?');
+assert.strictEqual(memQ4.mode, 'query_memory');
+
+const memQFollowUp = detectIntent('Now explain step 2 in detail', true);
+assert.strictEqual(memQFollowUp.mode, 'query_memory');
+
 const dictateTest1 = detectIntent('The quick brown fox jumps over the lazy dog.');
 assert.strictEqual(dictateTest1.mode, 'dictate');
 
@@ -56,7 +83,7 @@ assert.strictEqual(dictateTest2.mode, 'dictate');
 
 console.log('[PASS] Intent detection tests passed');
 
-// ── 2. Cosine Similarity Math ────────────────────────────────────────────────
+// 2. cosine similarity math
 const v1 = [1, 0, 0];
 const v2 = [1, 0, 0];
 const v3 = [0, 1, 0];
@@ -68,7 +95,7 @@ assert.ok(Math.abs(cosine(v1, v4) - (-1.0)) < 0.0001, 'Opposite vectors must equ
 
 console.log('[PASS] Cosine similarity math tests passed');
 
-// ── 3. MemoryStore Indexing & Vector Search ───────────────────────────────────
+// 3. memorystore indexing and vector search
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lp-test-memory-'));
 const testIndexFile = path.join(tempDir, 'index.json');
 
@@ -143,7 +170,18 @@ try {
   cappedStore.clear();
   assert.strictEqual(cappedStore.count(), 0);
 
-  console.log('[PASS] MemoryStore indexing and vector search tests passed');
+  // Test active context tracking and conversational history
+  cappedStore.add({ filePath: fileC, description: 'Test program', embedding: [1, 0, 0], intentional: true });
+  const activeCtx = cappedStore.getActiveContext();
+  assert.ok(activeCtx, 'Active context should be set for intentional capture');
+  assert.strictEqual(activeCtx.filePath, path.resolve(fileC));
+
+  cappedStore.addContextTurn('Explain step 1', 'Step 1 is initialization');
+  assert.strictEqual(cappedStore.activeContext.history.length, 2);
+  assert.strictEqual(cappedStore.activeContext.history[0].role, 'user');
+  assert.strictEqual(cappedStore.activeContext.history[1].text, 'Step 1 is initialization');
+
+  console.log('[PASS] MemoryStore indexing, active context, and vector search tests passed');
 } finally {
   fs.rmSync(tempDir, { recursive: true, force: true });
 }

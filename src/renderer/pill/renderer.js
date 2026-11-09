@@ -364,6 +364,21 @@ async function handleAudioBlob(blob) {
       return;
     }
 
+    if (result.mode === 'query_memory') {
+      if (result.warning) {
+        showStatus(result.warning, 'error');
+        resetToReadyLater(3500);
+      } else if (result.text && result.text.trim()) {
+        const msg = result.pasted ? 'Pasted from memory · Press <kbd>Ctrl+Shift+Space</kbd>' : 'Answer copied to clipboard';
+        showStatus(msg, 'idle');
+        resetToReadyLater(3500);
+      } else {
+        showStatus('No answer from remembered screen.', 'idle');
+        resetToReadyLater(2500);
+      }
+      return;
+    }
+
     // Standard dictation
     if (result.text && result.text.trim()) {
       if (result.warning) {

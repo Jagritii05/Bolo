@@ -10,7 +10,7 @@ export class GraftSpeechClient {
   async _ensureInit() {
     if (!this._initialized) {
       await configureGraftcode();
-      const { SpeechService } = await import('@graft/npm-speech-gateway');
+      const { SpeechService } = await import('@graft/pypi-speech-gateway');
       this._speechService = SpeechService;
       this._initialized = true;
     }
@@ -73,7 +73,7 @@ export class GraftSpeechClient {
 
   async transcribeFile(filePath, prompt = '') {
     await this._ensureInit();
-    const rawJson = await this._speechService.TranscribeFileJson(filePath, prompt);
+    const rawJson = await this._speechService.transcribeFileJson(filePath, prompt || '');
     const result = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
 
     if (result.error && !result.text) {

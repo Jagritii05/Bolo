@@ -1,9 +1,14 @@
 import os
 import requests
 from typing import Dict, Any
-from .base import SpeechEngine
-from ..errors import EngineUnavailableException, TranscriptionFailedException
-from ..config import GROQ_API_KEY
+try:
+    from .base import SpeechEngine
+    from ..errors import EngineUnavailableException, TranscriptionFailedException
+    from ..config import GROQ_API_KEY
+except ImportError:
+    from speech_service.engines.base import SpeechEngine
+    from speech_service.errors import EngineUnavailableException, TranscriptionFailedException
+    from speech_service.config import GROQ_API_KEY
 
 class GroqEngine(SpeechEngine):
     """

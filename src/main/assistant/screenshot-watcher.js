@@ -114,7 +114,7 @@ export function backfill(folder) {
   if (settingsStore.get('memoryMode') === 'intentional_only') return;
 
   try {
-    const lookbackHours = settingsStore.get('memoryMaxLookbackHours') || 24;
+    const lookbackHours = settingsStore.get('memoryMaxLookbackHours') || 72;
     const cutoff = Date.now() - (lookbackHours * 60 * 60 * 1000);
     const maxEntries = settingsStore.get('memoryMaxEntries') || 25;
     const remainingSlots = Math.max(0, maxEntries - memoryStore.count());
@@ -136,11 +136,11 @@ export function backfill(folder) {
 }
 
 // Synchronously index recent screenshots within lookback window on demand
-export async function ensureRecentScreenshotsIndexed(limit = 2) {
+export async function ensureRecentScreenshotsIndexed(limit = 3) {
   if (!settingsStore.get('memoryEnabled') || !hasApiKey()) return 0;
   if (settingsStore.get('memoryMode') === 'intentional_only') return 0;
 
-  const lookbackHours = settingsStore.get('memoryMaxLookbackHours') || 24;
+  const lookbackHours = settingsStore.get('memoryMaxLookbackHours') || 72;
   const cutoff = Date.now() - (lookbackHours * 60 * 60 * 1000);
   const folders = getCandidateFolders();
   let count = 0;
@@ -148,15 +148,21 @@ export async function ensureRecentScreenshotsIndexed(limit = 2) {
   for (const folder of folders) {
     if (!fs.existsSync(folder)) continue;
     try {
-      const files = fs.readdirSync(folder)
+      const allFiles = fs.readdirSync(folder)
         .filter(isImage)
         .map((f) => path.join(folder, f))
         .map((f) => ({ f, t: fs.statSync(f).mtimeMs }))
-        .filter((x) => x.t >= cutoff)
-        .sort((a, b) => b.t - a.t)
-        .slice(0, limit);
+        .sort((a, b) => b.t - a.t);
 
-      for (const item of files) {
+      // Prioritize files within lookback window, but fall back to newest files if none match
+      let candidateFiles = allFiles.filter((x) => x.t >= cutoff);
+      if (candidateFiles.length === 0 && allFiles.length > 0) {
+        candidateFiles = allFiles.slice(0, limit);
+      } else {
+        candidateFiles = candidateFiles.slice(0, limit);
+      }
+
+      for (const item of candidateFiles) {
         if (!memoryStore.has(item.f)) {
           const ok = await indexScreenshot(item.f, false);
           if (ok) count++;

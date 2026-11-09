@@ -25,6 +25,12 @@ class MemoryStore {
     this.file = file;
     this.maxEntries = maxEntries;
     this.entries = [];
+    this.activeContext = {
+      filePath: null,
+      description: null,
+      timestamp: null,
+      history: [],
+    };
     this.load();
   }
 
@@ -73,7 +79,66 @@ class MemoryStore {
       createdAt: createdAt || Date.now(),
       indexedAt: Date.now(),
     });
+    if (intentional) {
+      this.setActiveContext(resolved, description);
+    }
     this.save();
+  }
+
+  setActiveContext(filePath, description = '') {
+    const resolved = filePath ? path.resolve(filePath) : null;
+    const isNew = this.activeContext.filePath !== resolved;
+    this.activeContext = {
+      filePath: resolved,
+      description: description || this.activeContext.description || '',
+      timestamp: Date.now(),
+      history: isNew ? [] : (this.activeContext.history || []),
+    };
+  }
+
+  getActiveContext() {
+    if (this.activeContext.filePath && fs.existsSync(this.activeContext.filePath)) {
+      return this.activeContext;
+    }
+    const latest = this.getLatestRemembered();
+    if (latest && fs.existsSync(latest.path)) {
+      this.setActiveContext(latest.path, latest.description);
+      return this.activeContext;
+    }
+    return null;
+  }
+
+  clearActiveContext() {
+    this.activeContext = {
+      filePath: null,
+      description: null,
+      timestamp: null,
+      history: [],
+    };
+  }
+
+  addContextTurn(question, answer) {
+    if (!this.activeContext.history) {
+      this.activeContext.history = [];
+    }
+    this.activeContext.history.push({ role: 'user', text: question });
+    this.activeContext.history.push({ role: 'model', text: answer });
+    if (this.activeContext.history.length > 6) {
+      this.activeContext.history = this.activeContext.history.slice(-6);
+    }
+    this.activeContext.timestamp = Date.now();
+  }
+
+  getLatestRemembered() {
+    const intentional = [...this.entries]
+      .filter((e) => e.intentional && fs.existsSync(e.path))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    if (intentional.length > 0) return intentional[0];
+
+    const any = [...this.entries]
+      .filter((e) => fs.existsSync(e.path))
+      .sort((a, b) => b.createdAt - a.createdAt);
+    return any.length > 0 ? any[0] : null;
   }
 
   // Clear all indexed entries

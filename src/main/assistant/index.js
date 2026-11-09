@@ -53,13 +53,8 @@ export function clearMemoryStore() {
 export async function findScreenshots(query, limit = 5) {
   if (!query) throw new Error('Say what to find, e.g. "find the screenshot with the error".');
 
-  // If memory is empty or behind, index recent screenshots immediately
-  if (memoryStore.count() === 0) {
-    await ensureRecentScreenshotsIndexed(5).catch(() => {});
-  } else {
-    // Quick check to index the latest screenshot if just captured
-    await ensureRecentScreenshotsIndexed(1).catch(() => {});
-  }
+  // Ensure recent screenshots from watched folders are indexed
+  await ensureRecentScreenshotsIndexed(5).catch(() => {});
 
   if (memoryStore.count() === 0) {
     throw new Error('No screenshots found in your Screenshots folder. Take a screenshot with Win+Shift+S or PrtScn.');
@@ -80,9 +75,8 @@ export async function findScreenshots(query, limit = 5) {
 
 // "summarize ..." - summary of the latest screenshots
 export async function summarizeRecent(focus = '', limit = 10) {
-  if (memoryStore.count() === 0) {
-    await ensureRecentScreenshotsIndexed(5).catch(() => {});
-  }
+  // Always ensure newest screenshots are indexed before summarizing
+  await ensureRecentScreenshotsIndexed(5).catch(() => {});
   const recent = memoryStore.recent(limit);
   if (!recent.length) {
     throw new Error('No screenshots indexed yet to summarize.');
@@ -112,4 +106,85 @@ export async function askAboutScreen(instruction) {
       'Follow their instruction using what is on screen as context. ' +
       'Return only the text to paste at their cursor: no preamble, no quotes, no markdown.',
   });
+}
+
+// check if there is a recent screen context in memory
+export function hasActiveMemoryContext() {
+  const ctx = memoryStore.getActiveContext();
+  if (!ctx || !ctx.filePath) return false;
+  const isRecent = ctx.timestamp && (Date.now() - ctx.timestamp < 15 * 60 * 1000);
+  return Boolean(isRecent && fs.existsSync(ctx.filePath));
+}
+
+// answer questions about a previously remembered screen
+export async function askAboutRememberedScreen(question) {
+  if (!question || !question.trim()) {
+    throw new Error('Please ask a question about the remembered screen.');
+  }
+
+  let targetPath = null;
+  let targetDesc = '';
+  const activeCtx = memoryStore.getActiveContext();
+
+  // try vector search if the question targets a specific topic
+  const isFollowUp = question.match(/^(?:now\s+)?(?:explain|what\s+about|step|it|that)\b/i);
+  if (memoryStore.count() > 1 && !isFollowUp) {
+    try {
+      const qEmb = await embed(question);
+      const searchHits = memoryStore.search(qEmb, 2);
+      if (searchHits.length > 0 && searchHits[0].score > 0.65 && fs.existsSync(searchHits[0].path)) {
+        targetPath = searchHits[0].path;
+        targetDesc = searchHits[0].description;
+      }
+    } catch (_) {}
+  }
+
+  // fallback to active context or the newest saved screen
+  if (!targetPath) {
+    if (activeCtx && activeCtx.filePath && fs.existsSync(activeCtx.filePath)) {
+      targetPath = activeCtx.filePath;
+      targetDesc = activeCtx.description;
+    } else {
+      const latest = memoryStore.getLatestRemembered();
+      if (latest && fs.existsSync(latest.path)) {
+        targetPath = latest.path;
+        targetDesc = latest.description;
+      }
+    }
+  }
+
+  if (!targetPath || !fs.existsSync(targetPath)) {
+    throw new Error('No remembered screens found in memory. Say "remember this screen" first.');
+  }
+
+  memoryStore.setActiveContext(targetPath, targetDesc);
+
+  const ext = path.extname(targetPath).toLowerCase();
+  const mimeType = ext === '.png' ? 'image/png' : 'image/jpeg';
+  const base64 = fs.readFileSync(targetPath).toString('base64');
+  const imagePart = { mimeType, base64 };
+
+  const history = memoryStore.activeContext.history || [];
+  let historySection = '';
+  if (history.length > 0) {
+    historySection = 'Prior conversation turns on this screen:\n' +
+      history.map((h) => `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.text}`).join('\n') + '\n\n';
+  }
+
+  const prompt =
+    historySection +
+    `The user is working in an active application (e.g. email, chat, or editor) and asks a specific question about this previously remembered screen:\n` +
+    `User Question: "${question}"\n\n` +
+    `Instructions:\n` +
+    `- Answer the question directly, accurately, and concisely based strictly on what is visible on this screen.\n` +
+    `- Return only the clean text to paste at their cursor (e.g. steps, code, numbers, explanation).\n` +
+    `- Do NOT include conversational filler (e.g. "Sure! Here is...", "Based on the image..."), markdown code blocks, or quote marks unless specifically asked.`;
+
+  const answer = await generate(prompt, [imagePart], {
+    system:
+      'You are an intelligent visual memory assistant. The user previously saved a screen to memory and is now asking you to recall and explain specific details from that screen to paste into their current application. Provide precise, direct, and factual answers based strictly on the attached image.',
+  });
+
+  memoryStore.addContextTurn(question, answer);
+  return answer;
 }

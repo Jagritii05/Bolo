@@ -1,9 +1,16 @@
 from typing import Dict, List, Any, Optional
-from .engines.base import SpeechEngine
-from .engines.faster_whisper_engine import FasterWhisperEngine
-from .engines.groq_engine import GroqEngine
-from .engines.mlx_granite_engine import MlxGraniteEngine
-from .errors import EngineUnavailableException
+try:
+    from .engines.base import SpeechEngine
+    from .engines.faster_whisper_engine import FasterWhisperEngine
+    from .engines.groq_engine import GroqEngine
+    from .engines.mlx_granite_engine import MlxGraniteEngine
+    from .errors import EngineUnavailableException
+except ImportError:
+    from speech_service.engines.base import SpeechEngine
+    from speech_service.engines.faster_whisper_engine import FasterWhisperEngine
+    from speech_service.engines.groq_engine import GroqEngine
+    from speech_service.engines.mlx_granite_engine import MlxGraniteEngine
+    from speech_service.errors import EngineUnavailableException
 
 class EngineRegistry:
     """

@@ -13,3 +13,4 @@ gg.exe
 .env.*
 !.env.example
 .pytest_cache/
+docs/reviewer-reply.md

@@ -1,7 +1,11 @@
 import sys
 from typing import Dict, Any
-from .base import SpeechEngine
-from ..errors import EngineUnavailableException
+try:
+    from .base import SpeechEngine
+    from ..errors import EngineUnavailableException
+except ImportError:
+    from speech_service.engines.base import SpeechEngine
+    from speech_service.errors import EngineUnavailableException
 
 class MlxGraniteEngine(SpeechEngine):
     """

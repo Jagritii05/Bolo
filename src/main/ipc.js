@@ -14,6 +14,8 @@ import {
   summarizeRecent,
   askAboutScreen,
   rememberCurrentScreen,
+  askAboutRememberedScreen,
+  hasActiveMemoryContext,
   clearMemoryStore,
   getMemoryStatus,
   startScreenshotWatcher,
@@ -120,10 +122,10 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
 
       // Check intent if assistant is enabled
       const assistantEnabled = settingsStore.get('assistantEnabled') !== false;
-      const intent = assistantEnabled ? detectIntent(cleanText) : { mode: 'dictate', query: cleanText };
+      const intent = assistantEnabled ? detectIntent(cleanText, hasActiveMemoryContext()) : { mode: 'dictate', query: cleanText };
       logger.info(`Detected intent: [${intent.mode}] query: "${intent.query}"`);
 
-      // 1. Screenshot Memory Search: "find / search ..."
+      // search screenshots
       if (intent.mode === 'find') {
         try {
           const results = await findScreenshots(intent.query);
@@ -147,7 +149,7 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
         }
       }
 
-      // 2. Intentional Memory Capture: "remember this / save to memory ..."
+      // save current screen
       if (intent.mode === 'remember') {
         try {
           const remembered = await rememberCurrentScreen(intent.query);
@@ -171,7 +173,36 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
         }
       }
 
-      // 2. Screenshot Memory Summary: "summarize ..."
+      // ask questions about a saved screen
+      if (intent.mode === 'query_memory') {
+        try {
+          const answer = await askAboutRememberedScreen(intent.query);
+          let pasteResult = { success: true, pasted: true };
+          if (answer) {
+            pasteResult = await pasteTextToActiveWindow(answer);
+          }
+          return {
+            success: true,
+            mode: 'query_memory',
+            query: intent.query,
+            text: answer,
+            rawText: rawResult.text,
+            pasted: pasteResult.pasted,
+            warning: pasteResult.reason === 'ELEVATED_WINDOW' ? pasteResult.message : null,
+          };
+        } catch (memErr) {
+          logger.error(`Memory query failed: ${memErr.message}`);
+          return {
+            success: false,
+            mode: 'query_memory',
+            query: intent.query,
+            error: memErr.message,
+            pasted: false,
+          };
+        }
+      }
+
+      // summarize recent screenshots
       if (intent.mode === 'summarize') {
         try {
           const summary = await summarizeRecent(intent.query);
@@ -199,7 +230,7 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
         }
       }
 
-      // 3. Screen-Aware AI Reply / Assistant: "hey pill / reply / answer ..."
+      // ask about current screen
       if (intent.mode === 'ask') {
         try {
           const reply = await askAboutScreen(intent.query);
@@ -227,7 +258,7 @@ export function registerIpcHandlers({ getPillWindow, openSettingsWindow }) {
         }
       }
 
-      // 4. Default: Dictation auto-paste
+      // standard dictation
       let pasteResult = { success: true, pasted: true };
       if (cleanText) {
         pasteResult = await pasteTextToActiveWindow(cleanText);

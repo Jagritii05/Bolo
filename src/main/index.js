@@ -124,10 +124,7 @@ app.whenReady().then(() => {
     } catch (_) {}
   }
 
-  // 1. Start Python backend server
-  supervisor.startRestServer(7777);
-
-  // 2. Start Graftcode Gateways
+  // 1. Start Graftcode Gateways (Gateway A hosts Python SpeechService directly; Gateway B hosts Node.js TextPipelineService)
   supervisor.startGatewayA(8085, 8086);
   supervisor.startGatewayB(8095, 8096);
 

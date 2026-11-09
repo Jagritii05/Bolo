@@ -14,14 +14,15 @@
     "test:engines": "node tests/test_phase5_engines.mjs",
     "test:mcp": "node tests/test_phase6_mcp.mjs",
     "test:chaos": "powershell -ExecutionPolicy Bypass -File scripts/chaos.ps1",
-    "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests"
+    "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests",
+    "benchmark": "node scripts/benchmark.mjs"
   },
   "devDependencies": {
     "electron": "^28.3.3"
   },
   "dependencies": {
-    "@graft/npm-speech-gateway": "^1.0.0",
     "@graft/npm-text-gateway": "^1.0.0",
+    "@graft/pypi-speech-gateway": "^1.0.3",
     "ffmpeg-static": "^5.3.0"
   }
 }
