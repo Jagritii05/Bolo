@@ -1,8 +1,0 @@
-[project]
-name = "speech-gateway"
-version = "1.0.3"
-description = "LocalPill Python Speech Service hosted on Graftcode Gateway"
-requires-python = ">=3.10"
-dependencies = [
-    "faster-whisper>=1.1.0",
-]

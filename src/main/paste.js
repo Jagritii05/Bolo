@@ -1,4 +1,4 @@
-import { clipboard } from 'electron';
+import { clipboard } from './electron-bridge.js';
 import { execFile } from 'child_process';
 import { logger } from './logger.js';
 
@@ -53,14 +53,7 @@ if ([WinPaster]::IsForegroundElevated()) {
 }
 `;
 
-/**
- * Injects text into the currently active window by:
- * 1. Copying text to the system clipboard
- * 2. Checking if target window is elevated
- * 3. Simulating Ctrl+V keystroke (or Cmd+V on macOS) if permissible
- * 
- * Returns { success: boolean, pasted: boolean, reason?: string, message?: string }
- */
+// Copies text to clipboard and sends a paste shortcut to the foreground window
 export async function pasteTextToActiveWindow(text) {
   if (!text || typeof text !== 'string') {
     return { success: false, pasted: false, message: 'Empty text' };

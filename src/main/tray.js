@@ -1,12 +1,10 @@
-import { Tray, Menu, nativeImage, shell, app } from 'electron';
-import path from 'path';
+import { Tray, Menu, nativeImage, shell, app } from './electron-bridge.js';
 import { logger } from './logger.js';
 import { settingsStore } from './settings-store.js';
 
 let tray = null;
 
 function createDefaultTrayIcon() {
-  // 16x16 RGBA pill icon buffer (purple/blue gradient circle)
   const size = 16;
   const buffer = Buffer.alloc(size * size * 4);
   const radius = 6;
@@ -22,7 +20,6 @@ function createDefaultTrayIcon() {
         buffer[idx + 2] = 241; // B
         buffer[idx + 3] = 255; // A
       } else if (dist <= radius + 1) {
-        // Antialiased border
         const alpha = Math.max(0, Math.min(255, Math.round((1 - (dist - radius)) * 255)));
         buffer[idx] = 99;
         buffer[idx + 1] = 102;
@@ -37,14 +34,13 @@ function createDefaultTrayIcon() {
   return nativeImage.createFromBuffer(buffer, { width: size, height: size });
 }
 
-export function setupTray({ onTogglePill, onOpenSettings, onEngineChange }) {
+export function setupTray({ onTogglePill, onOpenSettings, onLanguageChange }) {
   const icon = createDefaultTrayIcon();
   tray = new Tray(icon);
-  tray.setToolTip('LocalPill - Voice Layer for Windows');
+  tray.setToolTip('Bolo - Multilingual Screen Explainer (Gnani AI)');
 
   function updateMenu() {
-    const currentEngine = settingsStore.get('engine');
-    const currentTransport = settingsStore.get('transport');
+    const currentLang = settingsStore.get('language') || 'hi-IN';
 
     const contextMenu = Menu.buildFromTemplate([
       {
@@ -57,87 +53,54 @@ export function setupTray({ onTogglePill, onOpenSettings, onEngineChange }) {
       },
       { type: 'separator' },
       {
-        label: 'Speech Engine',
+        label: 'Language',
         submenu: [
           {
-            label: 'Local Whisper (base)',
+            label: 'Hindi / Hinglish (हिन्दी)',
             type: 'radio',
-            checked: currentEngine === 'whisper-base',
+            checked: currentLang === 'hi-IN',
             click: () => {
-              settingsStore.set('engine', 'whisper-base');
-              onEngineChange && onEngineChange('whisper-base');
+              settingsStore.set('language', 'hi-IN');
+              onLanguageChange && onLanguageChange('hi-IN');
               updateMenu();
-            }
+            },
           },
           {
-            label: 'Local Whisper (tiny - fast)',
+            label: 'Tamil (தமிழ்)',
             type: 'radio',
-            checked: currentEngine === 'whisper-tiny',
+            checked: currentLang === 'ta-IN',
             click: () => {
-              settingsStore.set('engine', 'whisper-tiny');
-              onEngineChange && onEngineChange('whisper-tiny');
+              settingsStore.set('language', 'ta-IN');
+              onLanguageChange && onLanguageChange('ta-IN');
               updateMenu();
-            }
+            },
           },
           {
-            label: 'Local Whisper (small - accurate)',
+            label: 'Bengali (বাংলা)',
             type: 'radio',
-            checked: currentEngine === 'whisper-small',
+            checked: currentLang === 'bn-IN',
             click: () => {
-              settingsStore.set('engine', 'whisper-small');
-              onEngineChange && onEngineChange('whisper-small');
+              settingsStore.set('language', 'bn-IN');
+              onLanguageChange && onLanguageChange('bn-IN');
               updateMenu();
-            }
+            },
           },
-          {
-            label: 'Groq Whisper (Cloud)',
-            type: 'radio',
-            checked: currentEngine === 'groq-whisper',
-            click: () => {
-              settingsStore.set('engine', 'groq-whisper');
-              onEngineChange && onEngineChange('groq-whisper');
-              updateMenu();
-            }
-          }
-        ]
-      },
-      {
-        label: 'IPC Transport',
-        submenu: [
-          {
-            label: 'Graftcode (Default)',
-            type: 'radio',
-            checked: currentTransport === 'graft',
-            click: () => {
-              settingsStore.set('transport', 'graft');
-              updateMenu();
-            }
-          },
-          {
-            label: 'Legacy REST Baseline',
-            type: 'radio',
-            checked: currentTransport === 'rest',
-            click: () => {
-              settingsStore.set('transport', 'rest');
-              updateMenu();
-            }
-          }
-        ]
+        ],
       },
       { type: 'separator' },
       {
         label: 'Open Logs Folder',
-        click: () => shell.openPath(logger.getLogDir())
+        click: () => shell.openPath(logger.getLogDir()),
       },
       {
         label: 'Open Settings File',
-        click: () => shell.openPath(settingsStore.getSettingsPath())
+        click: () => shell.openPath(settingsStore.getSettingsPath()),
       },
       { type: 'separator' },
       {
-        label: 'Quit LocalPill',
-        click: () => app.quit()
-      }
+        label: 'Quit Bolo',
+        click: () => app.quit(),
+      },
     ]);
 
     tray.setContextMenu(contextMenu);

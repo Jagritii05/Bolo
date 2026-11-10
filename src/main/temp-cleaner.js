@@ -4,7 +4,7 @@ import os from 'os';
 import { logger } from './logger.js';
 
 /**
- * Scans the OS temporary directory for any orphaned LocalPill audio recordings and cleans them up.
+ * Scans the OS temporary directory for any orphaned Bolo audio recordings and cleans them up.
  */
 export function cleanOrphanedTempAudio(maxAgeMs = 5 * 60 * 1000) {
   try {
@@ -14,7 +14,7 @@ export function cleanOrphanedTempAudio(maxAgeMs = 5 * 60 * 1000) {
     let cleanedCount = 0;
 
     for (const file of files) {
-      if (file.startsWith('lp_audio_') || file.startsWith('localpill_') || file.startsWith('lp_rec_')) {
+      if (file.startsWith('bolo_') || file.startsWith('lp_audio_') || file.startsWith('localpill_') || file.startsWith('lp_rec_')) {
         const fullPath = path.join(tmpDir, file);
         try {
           const stats = fs.statSync(fullPath);

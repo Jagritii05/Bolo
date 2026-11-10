@@ -3,79 +3,160 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LocalPill</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; media-src 'self' blob: data:; connect-src *;" />
+  <title>Bolo</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="pill" id="pill">
 
-    <!-- Mic button -->
-    <div class="mic-container" id="micContainer">
-      <div class="mic-ring" id="micRing"></div>
-      <div class="mic-btn" id="micBtn" title="Toggle Recording">
-        <!-- Mic icon -->
-        <svg class="mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/>
-          <path d="M5 11C5 14.866 8.13401 18 12 18C15.866 18 19 14.866 19 11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          <line x1="9" y1="22" x2="15" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-        <!-- Stop icon (shown while recording) -->
-        <svg class="stop-icon" id="stopIcon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:none;">
-          <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/>
-        </svg>
+    <!-- Compact control row -->
+    <div class="header-row">
+      <!-- Mic trigger button -->
+      <div class="mic-container" id="micContainer">
+        <div class="mic-ring" id="micRing"></div>
+        <button class="mic-btn" id="micBtn" title="Speak / Trigger (Ctrl+Shift+Space)">
+          <!-- Mic icon -->
+          <svg class="icon mic-icon" id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="2" width="6" height="12" rx="3" fill="currentColor"/>
+            <path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4M8 22h8" stroke-linecap="round"/>
+          </svg>
+          <!-- Stop icon -->
+          <svg class="icon stop-icon" id="stopIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none;">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Live state & status text -->
+      <div class="status-container" id="statusContainer">
+        <div class="status-indicator">
+          <span class="status-dot" id="statusDot"></span>
+          <span class="status-text" id="statusText">Ctrl+Shift+Space</span>
+        </div>
+        <button class="mode-badge" id="modeBadge" title="Current Mode · Click to cycle or change (Ctrl+M)">
+          <span id="modeBadgeIcon">🔍</span> <span id="modeBadgeText">Explain</span>
+        </button>
+      </div>
+
+      <!-- Controls: Mute toggle, Settings popup, Close -->
+      <div class="controls-container">
+        <!-- Mute toggle button -->
+        <button class="icon-btn" id="muteBtn" title="Toggle Voice Output">
+          <svg class="icon" id="soundOnIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+          <svg class="icon" id="soundOffIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"/>
+            <line x1="23" y1="9" x2="17" y2="15"/>
+            <line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+        </button>
+
+        <!-- Settings icon (opens Mode & Language popover) -->
+        <button class="icon-btn" id="settingsBtn" title="Mode & Language Settings">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+
+        <!-- Close / Hide button -->
+        <button class="icon-btn" id="closeBtn" title="Hide">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
     </div>
 
-    <!-- Content area -->
-    <div class="content" id="content">
-      <!-- Status row -->
-      <div class="status-row" id="statusRow">
-        <div class="status-dot" id="statusDot"></div>
-        <span class="status-text" id="statusText">Press <kbd>Ctrl+Shift+Space</kbd> to speak</span>
-      </div>
-
-      <!-- Transcript -->
-      <div class="transcript-container" id="transcriptContainer" style="display:none;">
-        <div class="transcript-text" id="transcriptText"></div>
-      </div>
-
-      <!-- Loading indicator -->
-      <div class="loading-row" id="loadingRow" style="display:none;">
-        <div class="wave-bars">
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
+    <!-- Quick Settings Popover (Toggled by Settings Icon) -->
+    <div class="settings-popover" id="settingsPopover" style="display:none;">
+      <div class="popover-row">
+        <span class="popover-label">Mode</span>
+        <div class="chip-group" id="modeChips">
+          <button class="chip active" data-mode="explain">🔍 Explain</button>
+          <button class="chip" data-mode="reply">✉️ Reply</button>
+          <button class="chip" data-mode="dictate">🎙️ Dictate</button>
         </div>
-        <span class="loading-text" id="loadingText">Transcribing & pasting…</span>
       </div>
 
-      <!-- Search results container -->
-      <div class="results-container" id="resultsContainer" style="display:none;">
-        <div class="results-header">
-          <span class="results-title" id="resultsTitle">Screenshots</span>
-          <button class="results-close" id="resultsCloseBtn" title="Close">&times;</button>
+      <div class="popover-row">
+        <span class="popover-label">Language</span>
+        <div class="chip-group" id="langChips">
+          <button class="chip active" data-lang="hi-IN">Hinglish</button>
+          <button class="chip" data-lang="ta-IN">Tamil</button>
+          <button class="chip" data-lang="bn-IN">Bengali</button>
         </div>
-        <div class="results-list" id="resultsList"></div>
+      </div>
+
+      <div class="popover-footer">
+        <button class="link-btn" id="openFullSettingsBtn">
+          ⚙️ More Settings (API Keys, Hotkey)…
+        </button>
       </div>
     </div>
 
-    <!-- Settings button -->
-    <button class="icon-btn" id="settingsBtn" title="Settings">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="3"></circle>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-      </svg>
-    </button>
+    <!-- Animated loading indicator -->
+    <div class="loader-row" id="loaderRow" style="display:none;">
+      <div class="wave-bars">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+      </div>
+      <span class="loader-text" id="loaderText">Processing…</span>
+    </div>
 
-    <!-- Close button -->
-    <button class="icon-btn" id="closeBtn" title="Hide (Ctrl+Shift+Space)">
-      <svg viewBox="0 0 24 24" fill="none">
-        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
+    <!-- Expanded content: Question & Explanation -->
+    <div class="explanation-container" id="explanationContainer" style="display:none;">
+      <!-- Transcribed question -->
+      <div class="question-row" id="questionRow" style="display:none;">
+        <span class="q-tag">Q</span>
+        <span class="question-text" id="questionText"></span>
+      </div>
+
+      <!-- Spoken answer text -->
+      <div class="answer-row" id="answerRow">
+        <div class="answer-text" id="answerText"></div>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="actions-row">
+        <button class="action-btn action-paste" id="pasteBtn" title="Paste Text into Active Window">
+          <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+          </svg>
+          Paste at Cursor
+        </button>
+        <button class="action-btn" id="replayBtn" title="Replay Spoken Audio">
+          <svg class="action-icon" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          Replay
+        </button>
+        <button class="action-btn" id="copyBtn" title="Copy Text to Clipboard">
+          <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+          Copy
+        </button>
+      </div>
+
+      <!-- Pill Footer: Model Attribution -->
+      <div class="pill-footer" id="pillFooter">
+        <span>Gnani Prisma STT</span>
+        <span class="dot-sep">·</span>
+        <span>Gnani Timbre TTS</span>
+        <span class="dot-sep">·</span>
+        <span id="footerProviderModel">Groq</span>
+      </div>
+    </div>
 
   </div>
 

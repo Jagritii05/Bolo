@@ -1,50 +1,33 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-contextBridge.exposeInMainWorld('localPill', {
-  // Event listeners
-  onToggleRecording: (callback) => {
-    ipcRenderer.on('pill:toggle-recording', (_event, data) => callback(data));
-  },
-  onEngineChanged: (callback) => {
-    ipcRenderer.on('engine:changed', (_event, engineId) => callback(engineId));
+const api = {
+  // Session state updates
+  onSessionStateChanged: (callback) => {
+    ipcRenderer.on('session:state-changed', (_event, data) => callback(data));
   },
 
   // Actions
-  checkHealth: () => ipcRenderer.invoke('speech:health'),
-  transcribeAudio: (audioBuffer) => ipcRenderer.invoke('speech:transcribe', audioBuffer),
+  triggerHotkey: () => ipcRenderer.invoke('session:trigger-hotkey'),
+  submitAudio: (audioBuffer) => ipcRenderer.invoke('session:submit-audio', audioBuffer),
+  cancelSession: () => ipcRenderer.send('session:cancel'),
+  replayAudio: () => ipcRenderer.invoke('session:replay-audio'),
+  copyText: (text) => ipcRenderer.send('session:copy-text', text),
+  setLanguage: (lang) => ipcRenderer.invoke('pill:set-language', lang),
+  setMode: (mode) => ipcRenderer.invoke('pill:set-mode', mode),
+  pasteText: (text) => ipcRenderer.invoke('session:paste-text', text),
+  toggleMute: () => ipcRenderer.invoke('pill:toggle-mute'),
+  getState: () => ipcRenderer.invoke('session:get-state'),
+
+  // Window management
   hidePill: () => ipcRenderer.send('pill:hide'),
   setPillHeight: (h) => ipcRenderer.send('pill:set-height', h),
+  setPillSize: (w, h) => ipcRenderer.send('pill:set-size', { width: w, height: h }),
   openSettings: () => ipcRenderer.send('pill:open-settings'),
-  openMicSettings: () => ipcRenderer.send('pill:open-mic-settings'),
-  pasteText: (text) => ipcRenderer.send('pill:paste', text),
-
-  listEngines: () => ipcRenderer.invoke('speech:list-engines'),
-  setEngine: (id) => ipcRenderer.invoke('speech:set-engine', id),
 
   // Settings
   getSettings: () => ipcRenderer.invoke('settings:get-all'),
   saveSettings: (settings) => ipcRenderer.invoke('settings:save', settings),
+};
 
-  // MCP Integration
-  getMcpInfo: () => ipcRenderer.invoke('mcp:get-info'),
-  openMcpAllowedDir: () => ipcRenderer.invoke('mcp:open-allowed-dir'),
-
-  // Assistant & Screenshot Memory
-  getAssistantStatus: () => ipcRenderer.invoke('assistant:status'),
-  findScreenshots: (query) => ipcRenderer.invoke('assistant:find', query),
-  copyPath: (filePath) => ipcRenderer.send('assistant:copy-path', filePath),
-  copyImage: (filePath) => ipcRenderer.send('assistant:copy-image', filePath),
-  showInFolder: (filePath) => ipcRenderer.send('assistant:show-in-folder', filePath),
-  chooseFolder: () => ipcRenderer.invoke('assistant:choose-folder'),
-  clearMemory: () => ipcRenderer.invoke('assistant:clear-memory'),
-});
-
-// Legacy backward-compatibility adapter
-contextBridge.exposeInMainWorld('electronAPI', {
-  onToggle: (callback) => {
-    ipcRenderer.on('pill:toggle-recording', (_event, data) => callback(data));
-  },
-  hideWindow: () => ipcRenderer.send('pill:hide'),
-  recordingDone: () => {},
-  pasteText: (text) => ipcRenderer.send('pill:paste', text),
-});
+contextBridge.exposeInMainWorld('bolo', api);
+contextBridge.exposeInMainWorld('localPill', api);

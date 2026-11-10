@@ -3,266 +3,181 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LocalPill Settings</title>
+  <title>Bolo Settings</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div class="container">
     <header class="header">
       <div class="logo-area">
-        <div class="logo-badge">LP</div>
+        <div class="logo-badge">BOLO</div>
         <div>
-          <h1>LocalPill Settings</h1>
-          <p class="subtitle">Private voice layer for Windows & AI agents</p>
+          <h1>Bolo Settings</h1>
+          <p class="subtitle">Multilingual Screen Explainer &amp; Assistant · Gnani AI</p>
         </div>
       </div>
     </header>
 
     <div class="tabs">
-      <button class="tab-btn active" data-tab="engine">Speech Engine</button>
-      <button class="tab-btn" data-tab="assistant">AI Assistant</button>
-      <button class="tab-btn" data-tab="pipeline">Text Pipeline</button>
-      <button class="tab-btn" data-tab="snippets">Snippets</button>
-      <button class="tab-btn" data-tab="mcp">MCP</button>
+      <button class="tab-btn active" data-tab="mode-lang">Mode &amp; Language</button>
+      <button class="tab-btn" data-tab="gnani">Gnani Voice</button>
+      <button class="tab-btn" data-tab="llm">LLM Engine</button>
+      <button class="tab-btn" data-tab="vision">Vision OCR</button>
       <button class="tab-btn" data-tab="general">General</button>
     </div>
 
-    <div class="tab-content" id="tab-engine">
+    <!-- Tab 1: Mode & Language -->
+    <div class="tab-content" id="tab-mode-lang">
       <div class="section-card">
-        <h3>Active Transcription Engine</h3>
-        <p class="desc">Select local on-device Whisper model or opt-in cloud API.</p>
+        <h3>Default Action Mode</h3>
+        <p class="desc">Choose how Bolo responds when you trigger the hotkey or mic button.</p>
 
-        <div class="telemetry-card">
-          <div class="telemetry-item">
-            <span class="telemetry-label">Active Engine</span>
-            <span class="telemetry-value" id="telemetryActive">whisper-base</span>
-          </div>
-          <div class="telemetry-item">
-            <span class="telemetry-label">Hardware Device</span>
-            <span class="telemetry-value" id="telemetryDevice">CPU (int8)</span>
-          </div>
-          <div class="telemetry-item">
-            <span class="telemetry-label">Model Load Time</span>
-            <span class="telemetry-value" id="telemetryLoadTime">--</span>
-          </div>
-        </div>
-        
         <div class="radio-group">
           <label class="radio-card">
-            <input type="radio" name="engine" value="whisper-base" checked />
+            <input type="radio" name="appMode" value="explain" checked />
             <div class="radio-body">
-              <div class="radio-title">Local Whisper Base (Recommended)</div>
-              <div class="radio-desc">Best balance of accuracy and latency (~140MB download). Fully local & private.</div>
+              <div class="radio-title">🔍 Explain Screen</div>
+              <div class="radio-desc">Captures the screen and explains what is happening in 3-4 simple conversational sentences spoken aloud via Gnani Timbre TTS.</div>
             </div>
           </label>
 
           <label class="radio-card">
-            <input type="radio" name="engine" value="whisper-tiny" />
+            <input type="radio" name="appMode" value="reply" />
             <div class="radio-body">
-              <div class="radio-title">Local Whisper Tiny (Ultra Fast)</div>
-              <div class="radio-desc">Instant dictation on lower-spec hardware (~75MB download). Fully local & private.</div>
+              <div class="radio-title">✉️ Draft Smart Reply (Screen-Aware)</div>
+              <div class="radio-desc">Reads incoming email, Slack, or WhatsApp thread on screen, listens to your brief instruction, drafts a polite reply, and pastes it at your cursor.</div>
             </div>
           </label>
 
           <label class="radio-card">
-            <input type="radio" name="engine" value="whisper-small" />
+            <input type="radio" name="appMode" value="dictate" />
             <div class="radio-body">
-              <div class="radio-title">Local Whisper Small (High Accuracy)</div>
-              <div class="radio-desc">Maximum transcription accuracy (~460MB download). Requires modern CPU/GPU.</div>
+              <div class="radio-title">🎙️ Dictate Text (Voice Typing)</div>
+              <div class="radio-desc">Transcribes your spoken speech in any supported Indian language with auto-punctuation and pastes directly at your cursor.</div>
+            </div>
+          </label>
+        </div>
+
+        <div style="margin-top: 18px;">
+          <h3>Preferred Indian Language</h3>
+          <p class="desc">Conversational code-mixed speech (Hinglish/Tanglish/Benglish) spoken daily across India.</p>
+
+          <div class="form-group" style="margin-top: 8px;">
+            <select id="defaultLanguage" class="select-input">
+              <option value="hi-IN">Hinglish / हिन्दी (Conversational Hindi)</option>
+              <option value="ta-IN">Tamil / தமிழ் (Tanglish)</option>
+              <option value="bn-IN">Bengali / বাংলা (Benglish)</option>
+            </select>
+            <small class="helper-text">You can also quickly cycle modes in the pill with <kbd>Ctrl+M</kbd>.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Gnani AI -->
+    <div class="tab-content" id="tab-gnani" style="display: none;">
+      <div class="section-card">
+        <h3>Gnani AI Vachana Speech Platform</h3>
+        <p class="desc">Hearing powered by Gnani Prisma STT · Speaking powered by Gnani Timbre TTS.</p>
+
+        <div class="form-group" style="margin-top: 16px;">
+          <label for="gnaniApiKey">Gnani API Key (X-API-Key-ID)</label>
+          <input type="password" id="gnaniApiKey" placeholder="Enter your Gnani API Key..." class="text-input" />
+          <small class="helper-text">Stored locally in settings.json or loaded from GNANI_API_KEY environment variable.</small>
+        </div>
+
+        <div class="info-box" style="margin-top: 14px;">
+          <strong>Endpoints Active:</strong><br />
+          • STT: <code>https://api.vachana.ai/stt/v3</code> (Prisma v3.0)<br />
+          • TTS: <code>https://api.vachana.ai/api/v1/tts/inference</code> (Timbre v2.5: Poorvi, Trisha, Kirra)<br />
+          • Serial request queue with 3x backoff retry on HTTP 429.
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: LLM Engine -->
+    <div class="tab-content" id="tab-llm" style="display: none;">
+      <div class="section-card">
+        <h3>Reasoning &amp; Explanation Engine</h3>
+        <p class="desc">Select primary LLM provider to explain extracted screen content.</p>
+
+        <div class="radio-group" style="margin-top: 14px;">
+          <label class="radio-card">
+            <input type="radio" name="llmProvider" value="groq" checked />
+            <div class="radio-body">
+              <div class="radio-title">Groq Cloud (Llama 3.3 70B Versatile - Recommended)</div>
+              <div class="radio-desc">Sub-second ultra-low latency inference for real-time conversational voice responses.</div>
             </div>
           </label>
 
           <label class="radio-card">
-            <input type="radio" name="engine" value="groq-whisper" />
+            <input type="radio" name="llmProvider" value="gemini" />
             <div class="radio-body">
-              <div class="radio-title">
-                Groq Whisper (Cloud: whisper-large-v3-turbo)
-                <span class="badge-warning">Audio leaves device</span>
-              </div>
-              <div class="radio-desc">Sub-second cloud transcription. Requires Groq API Key. Audio sent to Groq.</div>
+              <div class="radio-title">Google Gemini (Gemini 2.5 Flash)</div>
+              <div class="radio-desc">Fast reasoning fallback using existing Gemini API key.</div>
             </div>
           </label>
         </div>
 
-        <div class="form-group" id="groqGroup" style="display: none; margin-top: 16px;">
-          <label for="groqApiKey">Groq API Key</label>
-          <input type="password" id="groqApiKey" placeholder="gsk_..." class="text-input" />
-          <small class="helper-text">Your key is stored locally in %APPDATA%\LocalPill\settings.json</small>
-          <div class="cloud-disclosure">
-            <strong>Privacy Notice:</strong> Audio transcribed with Groq leaves this machine and is processed on Groq's cloud servers. Do not use for confidential speech.
+        <!-- Groq Settings -->
+        <div id="groqGroup" style="margin-top: 16px;">
+          <div class="form-group">
+            <label for="groqApiKey">Groq API Key</label>
+            <input type="password" id="groqApiKey" placeholder="gsk_..." class="text-input" />
+            <small class="helper-text">Get a free key from console.groq.com</small>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="tab-content" id="tab-assistant" style="display: none;">
+    <!-- Tab 4: Vision OCR -->
+    <div class="tab-content" id="tab-vision" style="display: none;">
       <div class="section-card">
-        <h3>Google Gemini &amp; Screenshot Memory</h3>
-        <p class="desc">Natural voice commands to search visual memory, summarize recent work, or answer questions from the screen.</p>
+        <h3>Screen Text Extraction</h3>
+        <p class="desc">Transcribes visible text, form fields, and buttons in reading order without reasoning.</p>
 
-        <div class="telemetry-card">
-          <div class="telemetry-item">
-            <span class="telemetry-label">Indexed Screenshots</span>
-            <span class="telemetry-value" id="memoryItemCount">--</span>
-          </div>
-          <div class="telemetry-item">
-            <span class="telemetry-label">Watcher Status</span>
-            <span class="telemetry-value" id="watcherStatus">--</span>
-          </div>
-          <div class="telemetry-item" style="grid-column: span 2;">
-            <span class="telemetry-label">Folder</span>
-            <span class="telemetry-value" id="memoryFolderPath" style="font-size: 11px; word-break: break-all;">--</span>
-          </div>
+        <div class="form-group" style="margin-top: 16px;">
+          <label for="geminiApiKey">Google Gemini API Key</label>
+          <input type="password" id="geminiApiKey" placeholder="AIza..." class="text-input" />
+          <small class="helper-text">Used strictly for visual text transcription. Get a key at aistudio.google.com</small>
         </div>
 
-        <label class="checkbox-row" style="margin-top: 14px;">
-          <input type="checkbox" id="assistantEnabled" checked />
-          <span style="font-weight: 600;">Enable AI Assistant &amp; Intent Routing</span>
-        </label>
-        <p class="desc" style="margin-left: 25px; margin-bottom: 12px; font-size: 11px;">
-          Commands starting with "find", "search", "summarize", "ask", or "hey pill" route to Google Gemini instead of standard dictation.
-        </p>
-
-        <label class="checkbox-row">
-          <input type="checkbox" id="memoryEnabled" checked />
-          <span style="font-weight: 600;">Enable Screenshot Memory Indexing</span>
-        </label>
-        <p class="desc" style="margin-left: 25px; margin-bottom: 16px; font-size: 11px;">
-          Automatically describes and indexes screenshots in the background for vector search using Gemini Vision.
-        </p>
-
-        <div class="form-group" style="margin-top: 8px;">
-          <label for="geminiApiKey">Gemini API Key</label>
-          <input type="password" id="geminiApiKey" placeholder="AIzaSy..." class="text-input" />
-          <small class="helper-text">
-            Get a free API key at <a href="https://aistudio.google.com/" target="_blank" style="color: #818cf8; text-decoration: underline;">Google AI Studio</a>. Uses <code>gemini-2.5-flash</code> and <code>gemini-embedding-001</code>.
-          </small>
-        </div>
-
-        <div class="form-group" style="margin-top: 14px;">
-          <label for="memoryMode">Memory Indexing Mode</label>
-          <select id="memoryMode" class="text-input" style="width: 100%;">
-            <option value="hybrid">Hybrid (Recent screenshots + 'Remember this')</option>
-            <option value="intentional_only">Intentional Only (Only when saying 'Remember this')</option>
-          </select>
-          <small class="helper-text">Bounded to 25 items maximum (FIFO). Older items are safely evicted.</small>
-        </div>
-
-        <div class="form-group" style="margin-top: 14px;">
-          <label for="screenshotFolder">Screenshots Directory</label>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <input type="text" id="screenshotFolder" placeholder="Default: %USERPROFILE%\Pictures\Screenshots" class="text-input" style="flex: 1;" />
-            <button id="chooseFolderBtn" class="btn btn-secondary" style="white-space: nowrap;">Browse</button>
-          </div>
-          <small class="helper-text">Leave empty to use default Windows / OneDrive Screenshots folder.</small>
-        </div>
-
-        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; align-items: center; gap: 10px;">
-          <button id="clearMemoryBtn" class="btn btn-secondary" style="white-space: nowrap;">Clear Memory Index</button>
-          <span id="clearMemoryStatus" style="font-size: 11px; color: #94a3b8;">Wipes index slots without deleting your actual files.</span>
+        <div class="info-box" style="margin-top: 14px;">
+          <strong>Privacy Guarantee:</strong><br />
+          Screenshots are captured in memory only when you press the hotkey. No screenshots are saved to disk or indexed in the background.
         </div>
       </div>
     </div>
 
-    <div class="tab-content" id="tab-pipeline" style="display: none;">
-      <div class="section-card">
-        <h3>Text Normalization</h3>
-        <p class="desc">Deterministic formatting executed in the LocalPill text pipeline.</p>
-        
-        <label class="checkbox-row">
-          <input type="checkbox" id="spokenPunctuation" checked />
-          <span>Convert spoken punctuation (e.g. "period", "comma", "question mark")</span>
-        </label>
-
-        <label class="checkbox-row">
-          <input type="checkbox" id="fillerRemoval" checked />
-          <span>Remove filler words (um, uh, er, ah, like, you know)</span>
-        </label>
-
-        <label class="checkbox-row">
-          <input type="checkbox" id="casing" checked />
-          <span>Sentence auto-capitalization</span>
-        </label>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-snippets" style="display: none;">
-      <div class="section-card">
-        <h3>Custom Voice Snippets</h3>
-        <p class="desc">Define triggers that expand into longer text snippets upon dictation.</p>
-
-        <div id="snippetList" class="snippet-list"></div>
-
-        <div class="snippet-add-row">
-          <input type="text" id="newTrigger" placeholder=":trigger" class="text-input" style="max-width: 140px;" />
-          <input type="text" id="newExpansion" placeholder="Expansion text..." class="text-input" />
-          <button id="addSnippetBtn" class="btn btn-secondary">Add</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="tab-content" id="tab-mcp" style="display: none;">
-      <div class="section-card">
-        <h3>Model Context Protocol (MCP)</h3>
-        <p class="desc">Expose LocalPill speech and text services to Claude Desktop, Antigravity, and AI agents without an external API layer.</p>
-
-        <div class="form-group" style="margin-top: 14px;">
-          <label>Allowed Audio Folder (Security Boundary)</label>
-          <div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;">
-            <input type="text" id="mcpAllowedDir" readonly class="text-input" style="flex: 1; background: rgba(255,255,255,0.04); font-family: monospace; font-size: 12px;" />
-            <button id="openMcpFolderBtn" class="btn btn-secondary" style="white-space: nowrap;">Open Folder</button>
-            <button id="copyMcpFolderBtn" class="btn btn-secondary" style="white-space: nowrap;">Copy Path</button>
-          </div>
-          <small class="helper-text" style="color: #64748b; margin-top: 6px; display: block;">
-            Files outside this directory are strictly blocked by <code>PathNotAllowedException</code>. Symlink/junction escapes are automatically resolved and rejected.
-          </small>
-        </div>
-
-        <div style="margin-top: 20px;">
-          <h4 style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">Claude Desktop Integration</h4>
-          <p class="desc" style="font-size: 12px;">Add this configuration to <code>%APPDATA%\Claude\claude_desktop_config.json</code>:</p>
-          <pre id="claudeConfigCode" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 12px; font-size: 11px; overflow-x: auto; color: #94a3b8; font-family: Consolas, monospace;"></pre>
-          <button id="copyClaudeConfigBtn" class="btn btn-secondary" style="margin-top: 6px; font-size: 12px;">Copy Claude Config</button>
-        </div>
-
-        <div style="margin-top: 20px;">
-          <h4 style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">Antigravity / SSE Integration</h4>
-          <p class="desc" style="font-size: 12px;">Add this configuration to <code>~/.gemini/config/mcp_config.json</code>:</p>
-          <pre id="antigravityConfigCode" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 12px; font-size: 11px; overflow-x: auto; color: #94a3b8; font-family: Consolas, monospace;"></pre>
-          <button id="copyAntigravityConfigBtn" class="btn btn-secondary" style="margin-top: 6px; font-size: 12px;">Copy Antigravity Config</button>
-        </div>
-
-        <div style="margin-top: 20px;">
-          <h4 style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-bottom: 8px;">Exposed MCP Tools</h4>
-          <ul style="font-size: 12px; color: #94a3b8; padding-left: 18px; line-height: 1.6;">
-            <li><code>TranscribeFileJson(filePath, prompt)</code>: Transcribes an audio file inside the allowed folder. Supports .wav, .mp3, .m4a, .webm, .ogg, .flac up to 50 MB.</li>
-            <li><code>CleanTextJson(text, styleOrOptionsJson)</code>: Cleans text, removes filler words, formats punctuation, and expands snippets.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
+    <!-- Tab 5: General -->
     <div class="tab-content" id="tab-general" style="display: none;">
       <div class="section-card">
-        <h3>General Settings</h3>
+        <h3>General Preferences</h3>
 
         <div class="form-group">
-          <label for="hotkeyInput">Global Shortcut</label>
-          <input type="text" id="hotkeyInput" value="CommandOrControl+Shift+Space" class="text-input" />
-          <small class="helper-text">Format: CommandOrControl+Shift+Space</small>
+          <label for="hotkey">Global Hotkey</label>
+          <input type="text" id="hotkey" value="CommandOrControl+Shift+Space" class="text-input" />
+          <small class="helper-text">Default: Ctrl+Shift+Space (Press Esc to cancel at any time)</small>
         </div>
 
+        <div class="form-group" style="margin-top: 12px;">
+          <label for="followUpTimeoutSec">Follow-up Window Duration (seconds)</label>
+          <input type="number" id="followUpTimeoutSec" value="30" min="5" max="120" class="text-input" />
+          <small class="helper-text">Reuses cached screen text when you press hotkey again within this window.</small>
+        </div>
 
-        <label class="checkbox-row" style="margin-top: 16px;">
-          <input type="checkbox" id="logTranscripts" />
-          <span>Log full transcripts to disk (Disabled by default for privacy)</span>
-        </label>
+        <div class="form-group checkbox-group" style="margin-top: 12px;">
+          <label class="checkbox-label">
+            <input type="checkbox" id="debugMode" />
+            <span>Enable verbose debug logging (console &amp; file)</span>
+          </label>
+        </div>
       </div>
     </div>
 
     <footer class="footer">
-      <span id="saveStatus" class="save-status"></span>
-      <button id="saveBtn" class="btn btn-primary">Save Changes</button>
+      <div id="saveFeedback" class="save-feedback" style="display:none;">Saved!</div>
+      <button class="btn btn-primary" id="saveBtn">Save Settings</button>
     </footer>
   </div>
 

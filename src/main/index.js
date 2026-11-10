@@ -1,26 +1,23 @@
-import electronPkg from 'electron';
-const { app, BrowserWindow, screen } = electronPkg;
+import { app, BrowserWindow, screen, session } from './electron-bridge.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { supervisor } from './supervisor.js';
 import { registerGlobalShortcut, unregisterGlobalShortcut } from './shortcuts.js';
 import { setupTray, destroyTray } from './tray.js';
 import { registerIpcHandlers } from './ipc.js';
 import { logger } from './logger.js';
-import { settingsStore } from './settings-store.js';
-import { startScreenshotWatcher, stopScreenshotWatcher } from './assistant/index.js';
+import { sessionCoordinator } from '../core/session.js';
+import { cleanOrphanedTempAudio } from './temp-cleaner.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
 
-const PILL_WIDTH = 380;
-const PILL_HEIGHT = 68;
+const PILL_WIDTH = 340;
+const PILL_HEIGHT = 50;
 const MARGIN_BOTTOM = 25;
 
 let pillWindow = null;
 let settingsWindow = null;
-let isRecording = false;
 
 function createPillWindow() {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -38,7 +35,7 @@ function createPillWindow() {
     movable: true,
     skipTaskbar: true,
     hasShadow: false,
-    focusable: false,
+    focusable: true,
     webPreferences: {
       preload: path.join(PROJECT_ROOT, 'src', 'preload', 'preload.cjs'),
       contextIsolation: true,
@@ -47,6 +44,23 @@ function createPillWindow() {
   });
 
   pillWindow.loadFile(path.join(PROJECT_ROOT, 'src', 'renderer', 'pill', 'index.html'));
+
+  pillWindow.webContents.on('render-process-gone', (_event, details) => {
+    logger.error(`[Pill] Render process gone: ${details.reason} (exitCode: ${details.exitCode})`);
+    if (details.reason !== 'clean-exit') {
+      setTimeout(() => {
+        if (!pillWindow || pillWindow.isDestroyed()) {
+          createPillWindow();
+        }
+      }, 500);
+    }
+  });
+
+  pillWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    if (level >= 2) {
+      logger.warn(`[Pill Renderer] ${message} (${path.basename(sourceId || '')}:${line})`);
+    }
+  });
 
   pillWindow.on('closed', () => {
     pillWindow = null;
@@ -64,7 +78,7 @@ function createSettingsWindow() {
   settingsWindow = new BrowserWindow({
     width: 600,
     height: 650,
-    title: 'LocalPill Settings',
+    title: 'Bolo Settings - Gnani AI Edition',
     resizable: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -81,63 +95,48 @@ function createSettingsWindow() {
   });
 }
 
-let lastToggleTime = 0;
-
-function toggleRecording() {
-  const now = Date.now();
-  if (now - lastToggleTime < 350) {
-    logger.info(`Ignored shortcut bounce (${now - lastToggleTime}ms since last toggle)`);
-    return;
-  }
-  lastToggleTime = now;
-
-  if (!pillWindow) {
-    createPillWindow();
-  }
-
-  if (!pillWindow.isVisible()) {
-    pillWindow.show();
-  }
-
-  isRecording = !isRecording;
-  logger.info(`Shortcut toggled recording: ${isRecording}`);
-  pillWindow.webContents.send('pill:toggle-recording', { recording: isRecording });
+// Single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  logger.warn('Another instance of Bolo is already running. Quitting duplicate.');
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (pillWindow) {
+      if (!pillWindow.isVisible()) pillWindow.show();
+      pillWindow.focus();
+    }
+  });
 }
-
-import os from 'os';
-import fs from 'fs';
-import { cleanOrphanedTempAudio } from './temp-cleaner.js';
 
 // App lifecycle
 app.whenReady().then(() => {
-  logger.info('LocalPill starting up...');
+  logger.info('Bolo (Gnani AI Screen Explainer) starting up...');
 
-  // 0. Clean any orphaned temporary audio files from prior sessions
   cleanOrphanedTempAudio();
 
-  // Ensure MCP allowed directory exists
-  const userProfile = process.env.USERPROFILE || os.homedir();
-  const mcpAllowedDir = process.env.MCP_ALLOWED_DIR || path.join(userProfile, 'LocalPillRecordings');
-  if (!fs.existsSync(mcpAllowedDir)) {
-    try {
-      fs.mkdirSync(mcpAllowedDir, { recursive: true });
-    } catch (_) {}
+  // Auto-approve mic permissions
+  if (session && session.defaultSession) {
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      if (permission === 'media') {
+        callback(true);
+      } else {
+        callback(false);
+      }
+    });
+
+    session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+      return permission === 'media';
+    });
   }
 
-  // 1. Start Graftcode Gateways (Gateway A hosts Python SpeechService directly; Gateway B hosts Node.js TextPipelineService)
-  supervisor.startGatewayA(8085, 8086);
-  supervisor.startGatewayB(8095, 8096);
-
-  // 3. Setup IPC
   registerIpcHandlers({
     getPillWindow: () => pillWindow,
     openSettingsWindow: createSettingsWindow,
   });
 
-  // 4. Create Pill UI
   createPillWindow();
 
-  // 5. Setup Tray
   setupTray({
     onTogglePill: () => {
       if (!pillWindow) {
@@ -149,41 +148,36 @@ app.whenReady().then(() => {
       }
     },
     onOpenSettings: createSettingsWindow,
-    onEngineChange: (engineId) => {
-      logger.info(`Active engine changed via tray to: ${engineId}`);
-      if (pillWindow) {
-        pillWindow.webContents.send('engine:changed', engineId);
+    onLanguageChange: (lang) => {
+      logger.info(`Active language changed via tray to: ${lang}`);
+      try {
+        if (pillWindow && !pillWindow.isDestroyed() && pillWindow.webContents && !pillWindow.webContents.isDestroyed()) {
+          pillWindow.webContents.send('session:state-changed', {
+            state: sessionCoordinator.getState(),
+            languageChanged: lang,
+          });
+        }
+      } catch (err) {
+        logger.warn(`Failed to notify pill window of language change: ${err.message}`);
       }
     },
   });
 
-  // 6. Register Global Shortcut
-  registerGlobalShortcut(() => {
-    toggleRecording();
-  });
-
-  // 7. Background readiness check & warm-up
-  (async () => {
-    try {
-      const ready = await supervisor.waitForAllReady('graft', 25000);
-      if (ready) {
-        logger.info('All services reported ready. Initiating startup warm-up...');
-        const { getSpeechClient } = await import('./speech-client.js');
-        await supervisor.warmUp(getSpeechClient());
+  registerGlobalShortcut(
+    () => {
+      if (!pillWindow || pillWindow.isDestroyed()) {
+        createPillWindow();
+      } else if (!pillWindow.isVisible()) {
+        pillWindow.show();
       }
-    } catch (err) {
-      logger.warn(`Startup warm-up non-fatal warning: ${err.message}`);
+      sessionCoordinator.handleHotkey();
+    },
+    () => {
+      sessionCoordinator.cancel();
     }
-  })();
+  );
 
-  // 8. Start Screenshot Memory Watcher (if enabled)
-  try {
-    startScreenshotWatcher();
-  } catch (memErr) {
-    logger.warn(`Screenshot memory watcher failed to start: ${memErr.message}`);
-  }
-
-  logger.info('LocalPill initialization complete.');
+  logger.info('Bolo ready.');
 
   if (process.env.TEST_SMOKE === '1') {
     logger.info('TEST_SMOKE detected. Scheduled graceful exit in 2 seconds.');
@@ -194,15 +188,10 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
-  logger.info('LocalPill shutting down...');
-  try {
-    stopScreenshotWatcher();
-  } catch (_) {}
+  logger.info('Bolo shutting down...');
   unregisterGlobalShortcut();
   destroyTray();
-  supervisor.stopAll();
   cleanOrphanedTempAudio();
 });
 
-// Windows/Tray app: keep running when all windows are closed
 app.on('window-all-closed', () => {});

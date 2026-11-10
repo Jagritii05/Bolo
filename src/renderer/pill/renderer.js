@@ -1,443 +1,716 @@
-/* ============================================================
-   renderer.js — LocalPill floating pill UI
-   ============================================================ */
+const api = window.bolo || window.localPill;
 
+// DOM Elements
 const pill = document.getElementById('pill');
 const micBtn = document.getElementById('micBtn');
 const micIcon = document.getElementById('micIcon');
 const stopIcon = document.getElementById('stopIcon');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
-const statusRow = document.getElementById('statusRow');
-const transcriptContainer = document.getElementById('transcriptContainer');
-const transcriptText = document.getElementById('transcriptText');
-const loadingRow = document.getElementById('loadingRow');
-const loadingText = document.getElementById('loadingText');
+const modeBadge = document.getElementById('modeBadge');
+const modeBadgeIcon = document.getElementById('modeBadgeIcon');
+const modeBadgeText = document.getElementById('modeBadgeText');
+const muteBtn = document.getElementById('muteBtn');
+const soundOnIcon = document.getElementById('soundOnIcon');
+const soundOffIcon = document.getElementById('soundOffIcon');
 const settingsBtn = document.getElementById('settingsBtn');
 const closeBtn = document.getElementById('closeBtn');
-const resultsContainer = document.getElementById('resultsContainer');
-const resultsTitle = document.getElementById('resultsTitle');
-const resultsList = document.getElementById('resultsList');
-const resultsCloseBtn = document.getElementById('resultsCloseBtn');
 
-let mediaRecorder = null;
-let audioChunks = [];
+const settingsPopover = document.getElementById('settingsPopover');
+const openFullSettingsBtn = document.getElementById('openFullSettingsBtn');
+
+const loaderRow = document.getElementById('loaderRow');
+const loaderText = document.getElementById('loaderText');
+
+const explanationContainer = document.getElementById('explanationContainer');
+const questionRow = document.getElementById('questionRow');
+const questionText = document.getElementById('questionText');
+const answerRow = document.getElementById('answerRow');
+const answerText = document.getElementById('answerText');
+const pasteBtn = document.getElementById('pasteBtn');
+const replayBtn = document.getElementById('replayBtn');
+const copyBtn = document.getElementById('copyBtn');
+const footerProviderModel = document.getElementById('footerProviderModel');
+
+// Mode and language state
+let currentMode = 'explain';
+let currentLanguage = 'hi-IN';
+let isPopoverOpen = false;
+
+// Audio state
+let mediaStream = null;
+let audioContext = null;
+let recorderNode = null;
+let pcmChunks = [];
 let isRecording = false;
-let isStarting = false;
-let shouldStopImmediately = false;
-let activeStream = null;
-let modelReady = false;
-let readyPoller = null;
+let speechDetected = false;
+let silenceStart = 0;
+let recordingTimeout = null;
+let currentAudioElement = null;
+let lastAudioUri = null;
+let lastAnswerContent = '';
 
-const api = window.localPill || window.electronAPI;
+// Load initial settings
+async function initPill() {
+  try {
+    const info = await api.getState();
+    if (info) {
+      if (info.language) {
+        updateLanguageUI(info.language);
+      }
+      if (info.mode) {
+        updateModeUI(info.mode);
+      }
+      setMuteUI(info.isMuted);
+      resetToIdleUI();
+    }
+  } catch (err) {
+    console.warn('Could not load initial state:', err);
+  }
+}
+initPill();
 
-function setRecordingUI(recording) {
-  if (recording) {
-    pill.classList.add('recording');
-    micIcon.style.display = 'none';
-    stopIcon.style.display = 'block';
-    showStatus('Recording… press <kbd>Ctrl+Shift+Space</kbd> to finish', 'recording');
-    hideTranscript();
-    hideLoading();
+function updateModeUI(mode) {
+  currentMode = mode || 'explain';
+  const icons = { explain: '🔍', reply: '✉️', dictate: '🎙️' };
+  const labels = { explain: 'Explain', reply: 'Reply', dictate: 'Dictate' };
+  if (modeBadgeIcon) modeBadgeIcon.textContent = icons[currentMode] || '🔍';
+  if (modeBadgeText) modeBadgeText.textContent = labels[currentMode] || 'Explain';
+
+  document.querySelectorAll('#modeChips .chip').forEach((chip) => {
+    if (chip.getAttribute('data-mode') === currentMode) {
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+  });
+
+  resetToIdleUI();
+}
+
+function updateLanguageUI(lang) {
+  currentLanguage = lang || 'hi-IN';
+  document.querySelectorAll('#langChips .chip').forEach((chip) => {
+    if (chip.getAttribute('data-lang') === currentLanguage) {
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+  });
+}
+
+function togglePopover(show) {
+  isPopoverOpen = typeof show === 'boolean' ? show : !isPopoverOpen;
+  if (isPopoverOpen) {
+    settingsPopover.style.display = 'flex';
+    settingsBtn.classList.add('active');
+    api.setPillSize(340, 155);
   } else {
-    pill.classList.remove('recording');
-    micIcon.style.display = 'block';
-    stopIcon.style.display = 'none';
-    showStatus('Press <kbd>Ctrl+Shift+Space</kbd> to speak', 'idle');
+    settingsPopover.style.display = 'none';
+    settingsBtn.classList.remove('active');
+    if (!explanationContainer || explanationContainer.style.display === 'none') {
+      api.setPillSize(340, 50);
+    }
   }
 }
 
-function showStatus(html, type = 'idle') {
-  statusRow.style.display = 'flex';
+function setMuteUI(muted) {
+  if (muted) {
+    soundOnIcon.style.display = 'none';
+    soundOffIcon.style.display = 'block';
+    muteBtn.title = 'Sound Muted (Click to Unmute)';
+  } else {
+    soundOnIcon.style.display = 'block';
+    soundOffIcon.style.display = 'none';
+    muteBtn.title = 'Voice Output Active (Click to Mute)';
+  }
+}
+
+// Handle state changes from main process
+api.onSessionStateChanged((data) => {
+  console.log('[Pill UI] State change:', data);
+
+  if (data.languageChanged) {
+    updateLanguageUI(data.languageChanged);
+  }
+  if (data.mode) {
+    updateModeUI(data.mode);
+  }
+
+  // If finishListening triggered while recording, stop immediately
+  if (data.finishListening && isRecording) {
+    stopRecording(true);
+    return;
+  }
+
+  // Handle cancelled
+  if (data.cancelled) {
+    stopActiveAudio();
+    stopRecording(false);
+    resetToIdleUI();
+    return;
+  }
+
+  switch (data.state) {
+    case 'IDLE':
+      hideExplanation();
+      if (data.message) {
+        setStatus(data.message, 'speaking');
+        setTimeout(() => resetToIdleUI(), 2200);
+      } else {
+        resetToIdleUI();
+      }
+      break;
+
+    case 'CAPTURING':
+      stopActiveAudio();
+      stopRecording(false);
+      togglePopover(false);
+      showLoader(data.message || 'Capturing screen…');
+      setStatus('Capturing screen…', 'loading');
+      hideExplanation();
+      break;
+
+    case 'EXTRACTING':
+      showLoader('Reading visible screen text…');
+      setStatus('Reading screen text…', 'loading');
+      break;
+
+    case 'LISTENING':
+      hideLoader();
+      togglePopover(false);
+      pill.classList.remove('speaking');
+      pill.classList.add('recording');
+      micIcon.style.display = 'none';
+      stopIcon.style.display = 'block';
+      setStatus(data.message || 'Listening… speak your prompt', 'recording');
+      startRecording();
+      break;
+
+    case 'TRANSCRIBING':
+      stopRecording(false);
+      pill.classList.remove('recording');
+      micIcon.style.display = 'block';
+      stopIcon.style.display = 'none';
+      showLoader('Transcribing question (Gnani Prisma)…');
+      setStatus('Transcribing…', 'loading');
+      break;
+
+    case 'THINKING':
+      showLoader(currentMode === 'reply' ? 'Drafting smart reply…' : 'Explaining screen…');
+      setStatus('Thinking…', 'loading');
+      if (data.question) {
+        showQuestion(data.question);
+      }
+      break;
+
+    case 'SPEAKING':
+      hideLoader();
+      pill.classList.remove('recording');
+      pill.classList.add('speaking');
+      micIcon.style.display = 'block';
+      stopIcon.style.display = 'none';
+      setStatus('Ready · Press hotkey for follow-up', 'speaking');
+      renderAnswer(data);
+      break;
+
+    case 'ERROR':
+      hideLoader();
+      pill.classList.remove('recording', 'speaking');
+      micIcon.style.display = 'block';
+      stopIcon.style.display = 'none';
+      setStatus(data.error || 'An error occurred', 'error');
+      break;
+  }
+});
+
+function resetToIdleUI() {
+  pill.classList.remove('recording', 'speaking');
+  micIcon.style.display = 'block';
+  stopIcon.style.display = 'none';
+  hideLoader();
+
+  let hint = '<kbd>Ctrl+Shift+Space</kbd>';
+  if (currentMode === 'reply') {
+    hint = 'Draft <kbd>Ctrl+Shift+Space</kbd>';
+  } else if (currentMode === 'dictate') {
+    hint = 'Dictate <kbd>Ctrl+Shift+Space</kbd>';
+  }
+
+  setStatus(hint, 'idle');
+  if (!isPopoverOpen && (!explanationContainer || explanationContainer.style.display === 'none')) {
+    api.setPillSize(340, 50);
+  }
+}
+
+function setStatus(html, type = 'idle') {
   statusText.innerHTML = html;
   statusDot.className = 'status-dot';
   if (type === 'loading') statusDot.classList.add('loading');
+  if (type === 'recording') statusDot.classList.add('recording');
+  if (type === 'speaking') statusDot.classList.add('speaking');
   if (type === 'error') statusDot.classList.add('error');
 }
 
-function showTranscript(text) {
-  transcriptContainer.style.display = 'block';
-  transcriptText.textContent = text;
+function showLoader(msg) {
+  loaderRow.style.display = 'flex';
+  loaderText.textContent = msg;
+  if (!isPopoverOpen && (!explanationContainer || explanationContainer.style.display === 'none')) {
+    api.setPillSize(340, 80);
+  }
 }
 
-function hideTranscript() {
-  transcriptContainer.style.display = 'none';
-  transcriptText.textContent = '';
+function hideLoader() {
+  loaderRow.style.display = 'none';
 }
 
-function showResults(results, title) {
-  hideTranscript();
-  hideLoading();
-  statusRow.style.display = 'none';
-
-  resultsTitle.textContent = title || 'Screenshots';
-  resultsList.innerHTML = '';
-
-  if (!results || results.length === 0) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'font-size:12px;color:#94a3b8;padding:8px 0;';
-    empty.textContent = 'No matching screenshots found.';
-    resultsList.appendChild(empty);
+function showQuestion(q) {
+  if (q) {
+    questionText.textContent = q;
+    questionRow.style.display = 'flex';
   } else {
-    results.forEach((item) => {
-      const card = document.createElement('div');
-      card.className = 'result-item';
+    questionRow.style.display = 'none';
+  }
+}
 
-      const fileName = item.filePath ? item.filePath.split(/[\\/]/).pop() : 'screenshot.png';
-      const scoreBadge = (typeof item.score === 'number' && item.score > 0)
-        ? `<span class="result-score">${Math.round(item.score * 100)}% match</span>`
-        : '';
+function hideExplanation() {
+  explanationContainer.style.display = 'none';
+  if (!isPopoverOpen) {
+    api.setPillSize(340, 50);
+  }
+}
 
-      card.innerHTML = `
-        <div class="result-header-row">
-          <span class="result-name" title="${fileName}">${fileName}</span>
-          ${scoreBadge}
-        </div>
-        <div class="result-desc" title="${item.description || ''}">${item.description || 'No description available.'}</div>
-        <div class="result-actions">
-          <button class="result-btn action-copy-path">Copy Path</button>
-          <button class="result-btn action-copy-img">Copy Image</button>
-          <button class="result-btn action-open">Open</button>
-        </div>
+function renderAnswer(data) {
+  lastAnswerContent = data.answer || '';
+  lastAudioUri = data.audioDataUri || null;
+
+  showQuestion(data.question);
+  answerText.textContent = data.answer || '';
+  footerProviderModel.textContent = `${data.provider || 'LLM'} (${data.model || 'model'})`;
+
+  explanationContainer.style.display = 'flex';
+  api.setPillSize(440, 310);
+
+  if (data.pasted) {
+    setStatus('Pasted at cursor', 'speaking');
+    if (pasteBtn) {
+      pasteBtn.innerHTML = `
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Pasted!
       `;
+      setTimeout(() => {
+        pasteBtn.innerHTML = `
+          <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+          </svg>
+          Re-paste
+        `;
+      }, 2000);
+    }
+  }
 
-      const pathBtn = card.querySelector('.action-copy-path');
-      const imgBtn = card.querySelector('.action-copy-img');
-      const openBtn = card.querySelector('.action-open');
+  // Play audio in renderer if provided and not muted
+  if (data.audioDataUri && !data.isMuted) {
+    playBase64Audio(data.audioDataUri);
+  }
+}
 
-      pathBtn.addEventListener('click', async () => {
-        if (api.copyPath) {
-          await api.copyPath(item.filePath);
-          pathBtn.textContent = 'Copied!';
-          setTimeout(() => { pathBtn.textContent = 'Copy Path'; }, 1500);
-        }
-      });
-
-      imgBtn.addEventListener('click', async () => {
-        if (api.copyImage) {
-          const ok = await api.copyImage(item.filePath);
-          imgBtn.textContent = ok ? 'Copied!' : 'Failed';
-          setTimeout(() => { imgBtn.textContent = 'Copy Image'; }, 1500);
-        }
-      });
-
-      openBtn.addEventListener('click', () => {
-        if (api.showInFolder) {
-          api.showInFolder(item.filePath);
-        }
-      });
-
-      resultsList.appendChild(card);
+function playBase64Audio(dataUri) {
+  stopActiveAudio();
+  try {
+    currentAudioElement = new Audio(dataUri);
+    currentAudioElement.onended = () => {
+      pill.classList.remove('speaking');
+    };
+    currentAudioElement.onerror = (e) => {
+      console.warn('Audio playback error in renderer:', e);
+      pill.classList.remove('speaking');
+    };
+    currentAudioElement.play().catch((err) => {
+      console.warn('Audio play() was interrupted or blocked:', err.message);
+      pill.classList.remove('speaking');
     });
-  }
-
-  resultsContainer.style.display = 'flex';
-  pill.classList.add('expanded');
-  if (api.setPillHeight) {
-    api.setPillHeight(360);
+  } catch (err) {
+    console.error('Failed to initialize Audio element:', err);
+    pill.classList.remove('speaking');
   }
 }
 
-function hideResults() {
-  resultsContainer.style.display = 'none';
-  pill.classList.remove('expanded');
-  if (api.setPillHeight) {
-    api.setPillHeight(68);
+function stopActiveAudio() {
+  if (currentAudioElement) {
+    try {
+      currentAudioElement.pause();
+      currentAudioElement.currentTime = 0;
+    } catch {}
+    currentAudioElement = null;
   }
-  showStatus('Press <kbd>Ctrl+Shift+Space</kbd> to speak', 'idle');
+  pill.classList.remove('speaking');
 }
 
-if (resultsCloseBtn) {
-  resultsCloseBtn.addEventListener('click', hideResults);
-}
-
-function showLoading(msg = 'Transcribing & pasting…') {
-  loadingRow.style.display = 'flex';
-  loadingText.textContent = msg;
-  statusRow.style.display = 'none';
-}
-
-function hideLoading() {
-  loadingRow.style.display = 'none';
-}
-
-// ── Model readiness check ─────────────────────────────────────────────────────
-async function checkModelReady() {
-  try {
-    const health = await api.checkHealth();
-    if (health && health.ready) {
-      modelReady = true;
-      if (readyPoller) {
-        clearInterval(readyPoller);
-        readyPoller = null;
-      }
-      showStatus('Press <kbd>Ctrl+Shift+Space</kbd> to speak', 'idle');
-    } else {
-      const msg = health?.kind === 'MODEL_LOADING'
-        ? 'Loading speech model…'
-        : (health?.error || 'Starting services…');
-      showStatus(msg, 'loading');
-    }
-  } catch (_) {
-    showStatus('Starting services…', 'loading');
-  }
-}
-
-function startReadyPoller() {
-  showStatus('Starting services…', 'loading');
-  readyPoller = setInterval(checkModelReady, 1500);
-  checkModelReady();
-}
-
-function resetToReadyLater(delayMs = 2800) {
-  setTimeout(() => {
-    if (!isRecording) {
-      showStatus('Press <kbd>Ctrl+Shift+Space</kbd> to speak', 'idle');
-    }
-  }, delayMs);
-}
-
-// ── Audio recording ───────────────────────────────────────────────────────────
+// Microphone and AudioWorklet recording
 async function startRecording() {
-  if (resultsContainer && resultsContainer.style.display !== 'none') {
-    hideResults();
-  }
-
-  if (isRecording || isStarting) {
-    return;
-  }
-
-  if (!modelReady) {
-    showStatus('Loading speech model…', 'loading');
-    return;
-  }
-
-  isStarting = true;
-  shouldStopImmediately = false;
+  if (isRecording) return;
+  isRecording = true;
+  pcmChunks = [];
+  speechDetected = false;
+  silenceStart = 0;
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         channelCount: 1,
-        sampleRate: 16000,
         echoCancellation: true,
         noiseSuppression: true,
+        autoGainControl: true,
       },
-      video: false,
     });
 
-    if (shouldStopImmediately || !isStarting) {
-      stream.getTracks().forEach((track) => track.stop());
-      isStarting = false;
-      return;
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    audioContext = new AudioCtxClass();
+
+    // Register AudioWorklet processor module
+    try {
+      await audioContext.audioWorklet.addModule('./audio-processor.js');
+    } catch (loadErr) {
+      console.warn('[AudioWorklet] Direct module load fallback to inline blob:', loadErr);
+      const code = `
+        class RecorderProcessor extends AudioWorkletProcessor {
+          process(inputs) {
+            const input = inputs[0];
+            if (input && input.length > 0 && input[0]) {
+              this.port.postMessage(input[0]);
+            }
+            return true;
+          }
+        }
+        registerProcessor('recorder-processor', RecorderProcessor);
+      `;
+      const blob = new Blob([code], { type: 'application/javascript' });
+      const blobUrl = URL.createObjectURL(blob);
+      await audioContext.audioWorklet.addModule(blobUrl);
     }
 
-    activeStream = stream;
-    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-      ? 'audio/webm;codecs=opus'
-      : (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '');
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    recorderNode = new AudioWorkletNode(audioContext, 'recorder-processor');
 
-    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-    audioChunks = [];
+    recorderNode.port.onmessage = (e) => {
+      if (!isRecording) return;
+      const samples = e.data; // Float32Array
+      pcmChunks.push(new Float32Array(samples));
 
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) audioChunks.push(e.data);
+      // Calculate volume for silence threshold
+      let sumSquares = 0;
+      for (let i = 0; i < samples.length; i++) {
+        sumSquares += samples[i] * samples[i];
+      }
+      const rms = Math.sqrt(sumSquares / samples.length);
+      const isVoice = rms > 0.012;
+
+      const now = Date.now();
+      if (isVoice) {
+        speechDetected = true;
+        silenceStart = 0;
+      } else if (speechDetected) {
+        if (!silenceStart) {
+          silenceStart = now;
+        } else if (now - silenceStart > 1800) {
+          console.log('[Recording] Silence threshold (1.8s) reached. Auto-stopping...');
+          stopRecording(true);
+        }
+      }
     };
 
-    mediaRecorder.onstop = async () => {
-      if (activeStream) {
-        activeStream.getTracks().forEach((track) => track.stop());
-        activeStream = null;
-      }
-      const blob = new Blob(audioChunks, { type: mimeType || 'audio/webm' });
-      audioChunks = [];
+    source.connect(recorderNode);
+    // AudioWorkletNode runs in background audio thread and does not need to connect to destination!
 
-      if (blob.size < 1200) {
-        showStatus("Didn't catch any audio. Try again.", 'idle');
-        resetToReadyLater(2500);
-        return;
-      }
+    // Hard ceiling: 30 seconds
+    recordingTimeout = setTimeout(() => {
+      console.log('[Recording] Maximum recording limit (30s) reached.');
+      stopRecording(true);
+    }, 30000);
 
-      await handleAudioBlob(blob);
-    };
-
-    mediaRecorder.start();
-    isRecording = true;
-    isStarting = false;
-    setRecordingUI(true);
   } catch (err) {
-    isStarting = false;
+    console.error('Failed to access microphone:', err);
     isRecording = false;
-    setRecordingUI(false);
-    console.error('Microphone access failed:', err);
-    showStatus(
-      '<span id="micErrLink" style="cursor:pointer;text-decoration:underline;">Allow microphone access in Windows Settings > Privacy.</span>',
-      'error'
-    );
-    const link = document.getElementById('micErrLink');
-    if (link) {
-      link.addEventListener('click', () => {
-        if (api.openMicSettings) api.openMicSettings();
-      });
-    }
+    api.cancelSession();
+    setStatus('Microphone access denied', 'error');
   }
 }
 
-function stopRecording() {
-  if (isStarting) {
-    shouldStopImmediately = true;
-    isStarting = false;
-    setRecordingUI(false);
-    return;
-  }
-
-  if (!isRecording) {
-    return;
-  }
-
+async function stopRecording(shouldSubmit = true) {
+  if (!isRecording) return;
   isRecording = false;
-  setRecordingUI(false);
-  showLoading();
 
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+  if (recordingTimeout) {
+    clearTimeout(recordingTimeout);
+    recordingTimeout = null;
   }
-}
 
-async function handleAudioBlob(blob) {
-  showLoading('Processing speech…');
-  hideTranscript();
+  const sampleRate = audioContext?.sampleRate || 44100;
+
+  if (recorderNode) {
+    try {
+      recorderNode.disconnect();
+      recorderNode.port.onmessage = null;
+    } catch {}
+    recorderNode = null;
+  }
+
+  if (audioContext) {
+    try {
+      await audioContext.close();
+    } catch {}
+    audioContext = null;
+  }
+
+  if (mediaStream) {
+    try {
+      mediaStream.getTracks().forEach((t) => t.stop());
+    } catch {}
+    mediaStream = null;
+  }
+
+  if (!shouldSubmit || pcmChunks.length === 0) {
+    pcmChunks = [];
+    return;
+  }
+
+  const chunksToProcess = pcmChunks;
+  pcmChunks = [];
 
   try {
-    const arrayBuffer = await blob.arrayBuffer();
-    const result = await api.transcribeAudio(new Uint8Array(arrayBuffer));
-    hideLoading();
-
-    if (!result) {
-      showStatus('Transcription failed. Details in log.', 'error');
-      resetToReadyLater(3000);
+    const wavBytes = pcmToWav(chunksToProcess, sampleRate, 16000);
+    if (!wavBytes || wavBytes.length < 500) {
+      console.warn('[Recording] Audio too short, submitting empty.');
+      await api.submitAudio(null);
       return;
     }
 
-    if (!result.success) {
-      const errMsg = result.error || 'Transcription failed. Details in log.';
-      showStatus(errMsg, 'error');
-      resetToReadyLater(3500);
-      return;
-    }
-
-    // Assistant intent routing responses
-    if (result.mode === 'find') {
-      showResults(result.results || [], result.text || 'Matching Screenshots');
-      return;
-    }
-
-    if (result.mode === 'remember') {
-      showStatus('Screen saved to memory · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
-      resetToReadyLater(3500);
-      return;
-    }
-
-    if (resultsContainer && resultsContainer.style.display !== 'none') {
-      hideResults();
-    }
-
-    if (result.mode === 'summarize') {
-      if (result.text && result.text.trim()) {
-        showStatus('Summary copied to clipboard · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
-        resetToReadyLater(3500);
-      } else {
-        showStatus('No recent screenshots to summarize.', 'idle');
-        resetToReadyLater(2500);
-      }
-      return;
-    }
-
-    if (result.mode === 'ask') {
-      if (result.text && result.text.trim()) {
-        showStatus('Pasted reply · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
-        resetToReadyLater(3500);
-      } else {
-        showStatus('Could not answer from screen.', 'idle');
-        resetToReadyLater(2500);
-      }
-      return;
-    }
-
-    if (result.mode === 'query_memory') {
-      if (result.warning) {
-        showStatus(result.warning, 'error');
-        resetToReadyLater(3500);
-      } else if (result.text && result.text.trim()) {
-        const msg = result.pasted ? 'Pasted from memory · Press <kbd>Ctrl+Shift+Space</kbd>' : 'Answer copied to clipboard';
-        showStatus(msg, 'idle');
-        resetToReadyLater(3500);
-      } else {
-        showStatus('No answer from remembered screen.', 'idle');
-        resetToReadyLater(2500);
-      }
-      return;
-    }
-
-    // Standard dictation
-    if (result.text && result.text.trim()) {
-      if (result.warning) {
-        showStatus(result.warning, 'error');
-        resetToReadyLater(4000);
-      } else {
-        showStatus('Pasted · Press <kbd>Ctrl+Shift+Space</kbd>', 'idle');
-        resetToReadyLater(3500);
-      }
-    } else {
-      showStatus("Didn't catch any audio. Try again.", 'idle');
-      resetToReadyLater(2500);
-    }
+    console.log(`[Recording] WAV ready: ${wavBytes.length} bytes (16kHz Mono 16-bit). Submitting...`);
+    await api.submitAudio(wavBytes);
   } catch (err) {
-    hideLoading();
-    showStatus(`Error: ${err.message}`, 'error');
-    resetToReadyLater(3500);
+    console.error('Failed to encode PCM to WAV:', err);
+    await api.submitAudio(null);
   }
 }
 
-// ── IPC events ────────────────────────────────────────────────────────────────
-if (api.onToggleRecording) {
-  api.onToggleRecording(({ recording }) => {
-    if (recording) {
-      startRecording();
-    } else {
-      stopRecording();
-    }
-  });
-}
+function pcmToWav(chunks, sourceRate, targetRate = 16000) {
+  let totalLength = 0;
+  for (const chunk of chunks) {
+    totalLength += chunk.length;
+  }
 
-if (api.onEngineChanged) {
-  api.onEngineChanged((engineId) => {
-    showStatus(`Switched engine: ${engineId}`, 'idle');
-  });
-}
+  if (totalLength === 0) {
+    return new Uint8Array(0);
+  }
 
-// ── Button clicks ─────────────────────────────────────────────────────────────
-micBtn.addEventListener('click', () => {
-  if (isRecording || isStarting) {
-    stopRecording();
+  // Concatenate all float chunks into a single Float32Array
+  const fullSource = new Float32Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    fullSource.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  // Resample from sourceRate to targetRate (16kHz)
+  let resampled;
+  if (sourceRate === targetRate) {
+    resampled = fullSource;
   } else {
-    startRecording();
+    const ratio = sourceRate / targetRate;
+    const newLen = Math.round(fullSource.length / ratio);
+    resampled = new Float32Array(newLen);
+    for (let i = 0; i < newLen; i++) {
+      const srcIdx = i * ratio;
+      const lower = Math.floor(srcIdx);
+      const upper = Math.min(lower + 1, fullSource.length - 1);
+      const weight = srcIdx - lower;
+      resampled[i] = fullSource[lower] * (1 - weight) + fullSource[upper] * weight;
+    }
+  }
+
+  // Convert Float32 (-1.0 to 1.0) to 16-bit integer PCM
+  const pcm16 = new Int16Array(resampled.length);
+  for (let i = 0; i < resampled.length; i++) {
+    const s = Math.max(-1, Math.min(1, resampled[i]));
+    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+
+  const numChannels = 1;
+  const bitsPerSample = 16;
+  const dataSize = pcm16.length * 2;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  // RIFF identifier
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(view, 8, 'WAVE');
+
+  // fmt subchunk
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM format
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, targetRate, true);
+  view.setUint32(28, targetRate * numChannels * (bitsPerSample / 8), true);
+  view.setUint16(32, numChannels * (bitsPerSample / 8), true);
+  view.setUint16(34, bitsPerSample, true);
+
+  // data subchunk
+  writeString(view, 36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // Write PCM audio
+  let byteOffset = 44;
+  for (let i = 0; i < pcm16.length; i++) {
+    view.setInt16(byteOffset, pcm16[i], true);
+    byteOffset += 2;
+  }
+
+  return new Uint8Array(buffer);
+}
+
+function writeString(view, offset, string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+// UI event listeners
+micBtn.addEventListener('click', () => {
+  api.triggerHotkey();
+});
+
+// Mode badge click cycles modes
+modeBadge.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const modes = ['explain', 'reply', 'dictate'];
+  const nextIdx = (modes.indexOf(currentMode) + 1) % modes.length;
+  const nextMode = modes[nextIdx];
+  api.setMode(nextMode);
+  updateModeUI(nextMode);
+});
+
+// Settings button toggles popover
+settingsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  togglePopover();
+});
+
+// Mode chips in popover
+document.querySelectorAll('#modeChips .chip').forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const mode = btn.getAttribute('data-mode');
+    api.setMode(mode);
+    updateModeUI(mode);
+    togglePopover(false);
+  });
+});
+
+// Language chips in popover
+document.querySelectorAll('#langChips .chip').forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const lang = btn.getAttribute('data-lang');
+    api.setLanguage(lang);
+    updateLanguageUI(lang);
+    togglePopover(false);
+  });
+});
+
+// Open full settings from popover
+openFullSettingsBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  togglePopover(false);
+  api.openSettings();
+});
+
+// Close popover when clicking anywhere outside
+document.addEventListener('click', (e) => {
+  if (isPopoverOpen && !settingsPopover.contains(e.target) && !settingsBtn.contains(e.target)) {
+    togglePopover(false);
   }
 });
 
-if (settingsBtn) {
-  settingsBtn.addEventListener('click', () => {
-    if (api.openSettings) api.openSettings();
+if (pasteBtn) {
+  pasteBtn.addEventListener('click', async () => {
+    if (lastAnswerContent) {
+      await api.pasteText(lastAnswerContent);
+      const orig = pasteBtn.innerHTML;
+      pasteBtn.innerHTML = `
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Pasted!
+      `;
+      setTimeout(() => {
+        pasteBtn.innerHTML = orig;
+      }, 1500);
+    }
   });
 }
+
+muteBtn.addEventListener('click', async () => {
+  const res = await api.toggleMute();
+  if (res) {
+    setMuteUI(res.isMuted);
+    if (res.isMuted) {
+      stopActiveAudio();
+    }
+  }
+});
+
+replayBtn.addEventListener('click', async () => {
+  if (lastAudioUri) {
+    stopActiveAudio();
+    currentAudioElement = new Audio(lastAudioUri);
+    currentAudioElement.play().catch(() => {});
+  } else {
+    const uri = await api.replayAudio();
+    if (uri) {
+      lastAudioUri = uri;
+      stopActiveAudio();
+      currentAudioElement = new Audio(uri);
+      currentAudioElement.play().catch(() => {});
+    }
+  }
+});
+
+copyBtn.addEventListener('click', () => {
+  if (lastAnswerContent) {
+    api.copyText(lastAnswerContent);
+    const origText = copyBtn.innerHTML;
+    copyBtn.innerHTML = 'Copied!';
+    setTimeout(() => {
+      copyBtn.innerHTML = origText;
+    }, 1500);
+  }
+});
 
 closeBtn.addEventListener('click', () => {
-  if (isRecording || isStarting) stopRecording();
-  if (resultsContainer && resultsContainer.style.display !== 'none') {
-    hideResults();
-  }
-  if (api.hidePill) api.hidePill();
+  api.hidePill();
 });
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-startReadyPoller();
+// Keyboard shortcuts: ESC to cancel/close popover; Ctrl+M to cycle mode
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (isPopoverOpen) {
+      togglePopover(false);
+      return;
+    }
+    api.cancelSession();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+    e.preventDefault();
+    const modes = ['explain', 'reply', 'dictate'];
+    const nextIdx = (modes.indexOf(currentMode) + 1) % modes.length;
+    const nextMode = modes[nextIdx];
+    api.setMode(nextMode);
+    updateModeUI(nextMode);
+  }
+});

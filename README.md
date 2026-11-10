@@ -1,302 +1,223 @@
-# LocalPill
+# Bolo: Multilingual Screen-Explaining Voice Agent
 
-> A private, low-latency voice layer and visual memory assistant for Windows applications and AI agents, powered by Graftcode cross-language RPC.
+> An ambient, screen-aware voice assistant for Indian-language speakers on Windows, powered by **Gnani AI Vachana Speech Services (Prisma STT & Timbre TTS)**.
+
+[![Tests](https://img.shields.io/badge/tests-17%20passed-brightgreen.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-blue.svg)]()
+[![Gnani AI](https://img.shields.io/badge/Powered%20by-Gnani.ai-orange.svg)]()
 
 ---
 
-## Quick Start
+## 1. What It Is
+
+Many digital interfaces—such as net-banking portals, government compliance forms, e-commerce checkouts, and enterprise tools—are presented only in English, filled with confusing technical jargon and validation errors. 
+
+**Bolo** is an unobtrusive floating Windows desktop "pill" that bridges this language barrier. With a single global hotkey (`Ctrl+Shift+Space`), Bolo:
+1. **Captures** the user's active window purely in memory.
+2. **Extracts** visible text, form fields, and error banners using fast vision OCR.
+3. **Listens** to the user's spoken question in their preferred language (or uses an intelligent default prompt like *"Explain this screen"*).
+4. **Transcribes** the question using **Gnani Prisma STT**.
+5. **Explains** what is happening on screen in 3–4 concise, plain-spoken sentences in **Hindi/Hinglish, Tamil, or Bengali**, pointing out specific fields and buttons.
+6. **Speaks** the explanation aloud using **Gnani Timbre TTS** while displaying the text in the pill.
+7. **Supports instant follow-ups** ("What does this PAN box want?") without recapturing the screen.
+
+---
+
+## 2. Architecture
+
+```
+                    ┌──────────────────────────────────────────────┐
+                    │               Windows Desktop                │
+                    │         (Banking App, Portal, Form)          │
+                    └──────────────────────┬───────────────────────┘
+                                           │ Global Hotkey (Ctrl+Shift+Space)
+                                           ▼
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│                                Bolo Desktop App                                  │
+│                                                                                  │
+│   ┌─────────────────────┐   In-Memory JPEG   ┌───────────────────────────────┐   │
+│   │   Screen Capture    │ ─────────────────► │      Gemini Vision OCR        │   │
+│   │  (desktopCapturer)  │                    │   (Structured Text Extract)   │   │
+│   └─────────────────────┘                    └───────────────┬───────────────┘   │
+│                                                              │ Text              │
+│                                                              ▼                   │
+│                                              ┌───────────────────────────────┐   │
+│                                              │      Screen Text Cache        │   │
+│                                              │    (Multi-Turn Session)       │   │
+│                                              └───────────────┬───────────────┘   │
+│                                                              │                   │
+│   ┌─────────────────────┐    16kHz WAV Audio                 │ Screen Text       │
+│   │   Web Audio (Mic)   │ ──────────────────┐                │ + History         │
+│   └─────────────────────┘                   ▼                │                   │
+│                                   ┌──────────────────┐       │                   │
+│                                   │ Gnani Prisma STT │       │                   │
+│                                   │  (POST /stt/v3)  │       │                   │
+│                                   └─────────┬────────┘       │                   │
+│                                             │ Question       │                   │
+│                                             └───────┐ ┌──────┘                   │
+│                                                     ▼ ▼                          │
+│                                          ┌───────────────────────┐               │
+│                                          │     LLM Explainer     │               │
+│                                          │  (Groq Cloud / Gemini)│               │
+│                                          └──────────┬────────────┘               │
+│                                                     │ Explanation                │
+│                                                     ▼                            │
+│                                          ┌───────────────────────┐               │
+│                                          │  normalizeForSpeech   │               │
+│                                          │ (Currency, Num, Pct)  │               │
+│                                          └──────────┬────────────┘               │
+│                                                     │ Normalized Text            │
+│                                                     ▼                            │
+│                                          ┌───────────────────────┐               │
+│                                          │   Gnani Timbre TTS    │               │
+│                                          │ (/tts/inference POST) │               │
+│                                          └──────────┬────────────┘               │
+│                                                     │ Binary WAV                 │
+│                                                     ▼                            │
+│   ┌──────────────────────────────────────────────────────────────────────────┐   │
+│   │                               Pill UI                                    │   │
+│   │  • Audio Playback (HTML5 Audio)       • Replay & Copy Buttons            │   │
+│   │  • Language Selector (hi, ta, bn)    • Provider Attribution Footer      │   │
+│   └──────────────────────────────────────────────────────────────────────────┘   │
+│                                                                                  │
+│   ┌──────────────────────────────────────────────────────────────────────────┐   │
+│   │   Gnani Serial Request Queue: 1-flight concurrency + 429 backoff retry   │   │
+│   └──────────────────────────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 3. Supported Indian Languages & Gnani Models
+
+Bolo provides explicit language selection directly in the pill UI (no unreliable auto-detection):
+
+| Language | Locale Code | Prisma STT Code | Timbre TTS Voice | Speech Normalization | Conversational Default Prompt |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Hinglish / Hindi** | `hi-IN` | `hi-IN` | `Poorvi` (`hi-en`) | Numerals & Hinglish (e.g. ₹500 -> paanch sau rupaye / पाँच सौ रुपये) | Is screen par kya karna hai, explain karo |
+| **Tanglish / Tamil** | `ta-IN` | `ta-IN` | `Trisha` (`ta-IN`) | Tamil numerals, ₹ -> ரூபாய், % -> சதவீதம் | Intha screen-la enna pannanum nu explain pannunga |
+| **Benglish / Bengali** | `bn-IN` | `bn-IN` | `Kirra` (`bn-IN`) | Bengali numerals, ₹ -> টাকা, % -> শতাংশ | Ei screen-e ki korte hobe ektu explain koro |
+
+### How Gnani Models Are Used:
+1. **Gnani Prisma STT (`POST https://api.vachana.ai/stt/v3`):**
+   - Receives high-fidelity 16 kHz mono WAV audio recorded in-memory from the user's microphone.
+   - Synchronously transcribes the question in the selected Indic language.
+2. **Gnani Timbre TTS (`POST https://api.vachana.ai/api/v1/tts/inference`):**
+   - Synthesizes natural spoken explanations using Gnani's verified voice catalog (`Poorvi`, `Trisha`, `Kirra`).
+   - Returns binary WAV audio streamed directly to HTML5 Audio for instant playback.
+3. **Serial Request Queue & 429 Guard (`src/services/gnani/queue.js`):**
+   - Enforces strict serial request execution to comply with single-stream account concurrency limits.
+   - Automatically handles HTTP 429 with exponential backoff (1s, 2s, 4s + jitter) up to 3 retries.
+4. **Speech Normalizer (`src/services/gnani/normalizer.js`):**
+   - Converts raw numerals (0–9999999), currencies (`₹500` -> "पाँच सौ रुपये"), and percentages into native spoken words before sending to TTS.
+   - Truncates explanations at sentence boundaries (`।`, `.`, `?`, `!`) to <= 300 characters to prevent TTS HTTP 500 errors.
+
+---
+
+## 4. Honest Disclosure on LLMs Used
+
+- **Hearing & Speaking (Gnani AI):** Gnani AI Vachana models exclusively power hearing via **Prisma STT v3** and speaking via **Timbre TTS v2.5** across Hindi/Hinglish, Tamil, and Bengali.
+- **LLM Reasoning & Reply Drafting:** Bolo routes reasoning through **Groq Cloud (`qwen/qwen3.8-27b`)** or **Google Gemini (`gemini-3-flash-preview`)** behind a unified interface (`src/services/llm/index.js`).
+- **Honest Attribution:** The pill footer and console logs **always explicitly display the real provider and model that generated the answer** (e.g. `Answered by Groq (qwen/qwen3.8-27b)` or `Answered by Gemini (gemini-3-flash-preview)`). We never label output under false attribution.
+
+---
+
+## 5. Privacy & Security
+
+- **Triggered on Demand Only:** Screenshots are captured **only** when the user explicitly presses `Ctrl+Shift+Space`. There is zero background screenshot capture or indexing.
+- **Zero Disk Writes:** Captured screenshots are processed strictly in RAM as JPEG buffers and cleared immediately after text extraction.
+- **No Telemetry / No Ad Trackers:** Audio and screen text are sent only to the configured APIs (`api.vachana.ai`, `googleapis.com`, or `api.groq.com`).
+- **Instant Cancellation:** Pressing `Esc` at any moment immediately halts audio recording, aborts HTTP requests, stops speech playback, and resets the session to `IDLE`.
+
+---
+
+## 6. Setup & Installation
 
 ### Prerequisites
-* **Operating System:** Windows 10 or Windows 11 (x64)
-* **Node.js:** v18.0.0 or later (v20+ recommended)
-* **Python:** 3.10 to 3.13 (x64)
-* **Graftcode Gateway:** `gg.exe` version **v1.4.11** placed in the project root directory.
+- Windows 10 or 11
+- Node.js v18+ (tested on Node.js v22)
+- npm v10+
 
-### Setup & Launch
-From an elevated or standard PowerShell terminal in the project root:
-
+### Step 1: Clone and Install
 ```powershell
-# 1. Automated environment setup
-# Verifies gg.exe, initializes .env, configures Python venv, caches Whisper models, and installs Node modules
-powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+git clone https://github.com/Jagritii05/LocalPill_Graftcode.git
+cd LocalPill_Graftcode
+npm install
+```
 
-# 2. Launch LocalPill
+### Step 2: Configure Environment
+Copy `.env.example` to `.env`:
+```powershell
+cp .env.example .env
+```
+
+Open `.env` and fill in your keys:
+```env
+# Gnani AI API Key for Prisma STT and Timbre TTS
+GNANI_API_KEY=your_gnani_api_key
+
+# Google Gemini API Key for screen text extraction
+GEMINI_API_KEY=your_gemini_api_key
+
+# LLM Provider: 'groq' (recommended) or 'gemini'
+LLM_PROVIDER=groq
+GROQ_API_KEY=your_groq_api_key
+
+# Default Language ('hi-IN', 'ta-IN', 'bn-IN')
+DEFAULT_LANGUAGE=hi-IN
+
+# Debug logging
+DEBUG=false
+```
+
+### Step 3: Run the App
+```powershell
 npm start
 ```
-
-Press `Ctrl+Shift+Space` anywhere in Windows, speak, and clean, normalized text pastes directly at your cursor.
-
----
-
-## Offline Speech vs. Opt-In Cloud Features
-
-LocalPill is designed with a strict architectural separation between local and cloud operations:
-
-| Feature | Execution Environment | Network Requirement | External Privacy |
-| :--- | :--- | :--- | :--- |
-| **Speech-to-Text Dictation** | Local Faster-Whisper (`whisper-base`, `whisper-tiny`, `whisper-small` via CTranslate2 CPU/GPU) | **100% Offline** | Zero network egress. Audio processed in local memory/temp disk and purged immediately. |
-| **Text Normalization & Snippets** | Local Node.js / Graftcode Gateway B | **100% Offline** | Zero network egress. Punctuation conversion, filler word removal, and snippet expansion run entirely on host. |
-| **Model Context Protocol (MCP)** | Local Graftcode Gateway A (`:8085/mcp`) & Gateway B (`:8095/mcp`) | **100% Localhost** | Access limited strictly to `%USERPROFILE%\LocalPillRecordings`. No cloud telemetry. |
-| **Groq Whisper Fallback** | Optional Cloud Engine (`whisper-large-v3-turbo`) | Internet Connection | **Opt-in only:** Requires user-configured `GROQ_API_KEY`. Audio sent to Groq API only when explicitly selected in Settings. |
-| **Gemini Visual Memory & Screen Assistant** | Cloud Multimodal Reasoning (Google Gemini 3 Flash) | Internet Connection | **Opt-in only:** Requires user-configured `GEMINI_API_KEY`. Triggered strictly by intentional voice commands (*"remember this"*, *"ask what this error means"*). |
-
-If `GEMINI_API_KEY` or `GROQ_API_KEY` are not provided in `.env`, all cloud capabilities remain inactive while 100% of local voice dictation, engine switching, and MCP tools function seamlessly offline.
-
-### Selectable Visual Memory Modes
-Under **Settings > Assistant**, users can switch between two distinct memory architectures based on their privacy preferences:
-* **Hybrid Mode (Default):** Watches your local Windows Screenshots folder in the background (within a configurable lookback window up to 72 hours) and captures on-demand snapshots whenever you speak *"remember this"*.
-* **Intentional-Only Mode:** Strict privacy mode where the background folder watcher is completely idle. LocalPill never touches or scans your Screenshots folder; it captures and indexes an image only when you explicitly command *"remember this"* (or *"remember me"*).
+The Bolo floating bar will appear at the bottom-center of your screen.
 
 ---
 
-## Architectural Diagram
+## 7. Demo Walkthrough: Banking Re-KYC Form
 
-```mermaid
-flowchart TD
-    subgraph UI ["Presentation Layer (Electron / Windows)"]
-        A["Floating Pill Window (380x68 Glassmorphism)"]
-        B["Settings Dashboard (Engines, Memory, Normalization)"]
-        C["Global Shortcut Listener (Ctrl+Shift+Space)"]
-        D["Active Window Paste Subsystem (Windows SendInput / Clipboard)"]
-    end
+Bolo includes a realistic test form at `demo/mock-kyc-form.html` (synthetic, harmless data).
 
-    subgraph Core ["LocalPill Core (Node.js Main Process)"]
-        E["Lifecycle Supervisor & Process Manager"]
-        F["Settings Store (settings.json)"]
-        G["Intent Router (find, remember, summarize, ask, dictate)"]
-        H["Screen Capture Engine (desktopCapturer)"]
-    end
-
-    subgraph Assistant ["AI Visual Memory (Opt-In: Google Gemini)"]
-        I["Gemini 3 Flash Preview & Embedding API"]
-        J["Local Vector Store (25-slot FIFO index.json)"]
-        K["Recent Screenshot Watcher (24h bounded lookback)"]
-    end
-
-    subgraph GraftCode ["Graftcode Cross-Language RPC Layer"]
-        L["@graft/pypi-speech-gateway Client"]
-        M["@graft/npm-text-gateway Client"]
-        N["Gateway A: SpeechService (Python Runtime, Port 8085 / 8086)"]
-        O["Gateway B: TextPipelineService (Node.js Runtime, Port 8095 / 8096)"]
-        P["Streamable HTTP MCP Server (Port 8085/mcp & 8095/mcp)"]
-    end
-
-    subgraph Engines ["Execution Services"]
-        Q["In-Process Python Faster-Whisper (CTranslate2 int8/float16)"]
-        R["Groq Cloud Whisper API (Optional Cloud Fallback)"]
-        S["Deterministic Text Normalizer & Snippet Expander"]
-    end
-
-    subgraph External ["External AI Agents"]
-        T["Claude Desktop / Google Antigravity"]
-    end
-
-    C -->|Trigger Toggle| E
-    A -->|IPC Events| E
-    E -->|State Updates| A
-    B -->|Settings IPC| F
-    E -->|Route Speech Buffer| G
-
-    G -->|mode: remember / ask| H
-    H -->|JPEG Screen Frame| I
-    G -->|mode: find / summarize| J
-    K -->|24h Fresh Screenshots| I
-    I -->|Vector Embeddings| J
-
-    G -->|mode: dictate / completed audio base64| L
-    L -->|Persistent WebSocket RPC| N
-    N -->|In-Process Method Call| Q
-    N -->|Transcribed Text| M
-    M -->|WebSocket RPC| O
-    O -->|Normalize & Expand| S
-    S -->|Clean Text| D
-
-    N -->|Built-in MCP Endpoint| P
-    O -->|Built-in MCP Endpoint| P
-    T -->|Streamable HTTP / SSE| P
-```
+1. Open `demo/mock-kyc-form.html` in Chrome or Edge.
+2. Notice the red error banner: *"Your Aadhaar-PAN linking is pending in the central registry. Please upload a clear photo of your physical PAN Card before submitting this form."*
+3. With the KYC tab open, press **`Ctrl+Shift+Space`** on your keyboard.
+4. Bolo captures the screen, extracts the text, and turns red (*"Listening in Hinglish..."*).
+5. Stay silent (or ask *"Is form mein kya error hai?"*).
+6. Bolo transcribes the question with Gnani Prisma, reasons with the LLM using real conversational Hinglish, and speaks the answer via Gnani Timbre (voice `Poorvi`):
+   > *"Screen par error dikh raha hai ki aapka Aadhaar aur PAN link nahi hai. Submit button dabane se pehle PAN card ki clear photo upload karni hogi."*
+7. **Switch Language:** Select **தமிழ் (Tamil)** in the dropdown and press the hotkey. Bolo explains the same screen in conversational Tanglish using voice `Trisha`:
+   > *"Screen-la error irukku, Aadhaar-um PAN-um link aagala. Submit button click panrathukku munnadi PAN card photo upload pannunga."*
+8. **Test Follow-Up:** Within 30 seconds, press the hotkey and ask: *"Ye PAN wala box kya maang raha hai?"*. Bolo answers using the cached screen text without recapturing the screen!
 
 ---
 
-## What Graftcode Is Doing in This Project
+## 8. Testing
 
-In cross-language desktop applications, two core requirements conflict:
-1. **The Desktop UI & System Integration Layer** requires Node.js / Electron for native Windows API bindings, global hotkeys, floating frameless windows, tray menus, and active-window paste injection.
-2. **The High-Performance Inference Layer** requires Python to access native CTranslate2 execution engines, CUDA bindings, and PyTorch ecosystem libraries.
-
-Traditionally, developers bridge Electron and Python using ad-hoc HTTP REST servers (FastAPI/Flask) or by spawning child processes (such as `curl.exe` or CLI wrappers). This introduces significant drawbacks:
-* Spawning CLI processes on Windows introduces **13 ms to 50 ms** of child-process initialization overhead per call.
-* REST servers require hundreds of lines of boilerplate for route handling, body parsing, CORS headers, status codes, and socket timeouts.
-* Zero compile-time type safety across language boundaries, leading to runtime schema drift.
-* Manual implementation of Model Context Protocol (MCP) endpoints requires custom SSE or Streamable HTTP servers.
-
-### How Graftcode Solves This
-
-LocalPill uses Graftcode as the **backbone cross-language communication and microservice orchestration framework**:
-
-1. **Direct Python Hosting & Typed Client SDKs:**
-   * Graftcode Gateway A (`gg.exe --runtime python --modules services/speech`) hosts the Python `SpeechService` directly in-process via CPython.
-   * Discovers Python type annotations and publishes `@graft/pypi-speech-gateway`. Electron imports the typed client and calls `SpeechService.transcribeBytesJson(base64Audio, prompt)` as if it were a local JavaScript function.
-2. **Persistent WebSocket RPC:**
-   * When dictation finishes, the completed audio recording is base64-encoded and transmitted over a persistent WebSocket connection directly to Gateway A.
-   * Eliminates connection setup, socket teardown, and process spawning overhead.
-3. **Supervisor & Fault-Tolerant Auto-Recovery:**
-   * The Electron main supervisor (`ProcessSupervisor`) monitors the health of Gateway A and Gateway B over loopback.
-   * If a gateway encounters an unexpected issue, the supervisor initiates automated exponential backoff recovery without freezing the UI or losing state.
-4. **Zero-Code Model Context Protocol (MCP) Exposure:**
-   * Graftcode Gateway automatically exposes public methods as standard MCP endpoints on `http://localhost:8085/mcp` and `http://localhost:8095/mcp`.
-   * AI agents like Claude Desktop or Google Antigravity can connect directly to transcribe recordings within a sandboxed directory without any custom plugins.
-
----
-
-## Empirical Benchmark & Performance Analysis
-
-LocalPill includes an automated, reproducible benchmark harness (`scripts/benchmark.mjs`) that compares direct Graftcode WebSocket RPC against loopback HTTP REST and child-process CLI bridges on the host machine.
-
-### Benchmark Setup
-* **Host Platform:** Windows 11 x64 (12th Gen Intel Core i5-12450HX, 12 cores, 16 GB RAM)
-* **Active Engine:** `whisper-base` (CTranslate2 int8 on CPU)
-* **Gateway Version:** Graftcode Gateway `v1.4.11`
-* **Command:** `npm run benchmark`
-
-### 1. Transport & Ping Latency (N=50 calls, 5 warm-ups)
-Measures operational ping and metadata queries without neural model inference:
-
-| Architecture | Min | Median (p50) | p95 | Average | Transport Characteristics |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **Direct Graftcode WebSocket RPC** (`@graft/pypi-speech-gateway`) | 0.18 ms | **0.39 ms** | 1.21 ms | 0.51 ms | Persistent WebSocket frame; zero socket or process overhead |
-| **In-Process HTTP REST** (`GET /health`) | 0.54 ms | **0.74 ms** | 1.44 ms | 0.81 ms | HTTP socket handshake and header parsing |
-| **Subprocess `curl.exe` Bridge** (`execFile curl.exe`) | 13.07 ms | **13.80 ms** | 35.49 ms | 16.65 ms | Windows child-process creation penalty (+13 to 35 ms) |
-
-### 2. 1.0s Audio Clip End-to-End Transcription (N=5 calls, 2 warm-ups)
-Transcribing a 1.0-second 16 kHz mono audio sample on `whisper-base`:
-
-| Architecture | Min | Median (p50) | p95 | Average |
-| :--- | :---: | :---: | :---: | :---: |
-| **Direct Graftcode WebSocket RPC** (`SpeechService.transcribeBytesJson`) | 1179.49 ms | **1207.71 ms** | 1390.06 ms | **1246.97 ms** |
-| **In-Process HTTP REST** (`POST /transcribe`) | 1059.20 ms | **1072.29 ms** | 1134.04 ms | **1088.47 ms** |
-| **Subprocess `curl.exe` Bridge** (`curl.exe --data-binary`) | 1041.29 ms | **1054.05 ms** | 1083.56 ms | **1058.76 ms** |
-
-### Where Latency Lives:
-1. **Model Inference Dominates End-to-End Time:**
-   For a 1.0-second audio clip on CPU int8, neural inference requires **~1100–1200 ms**. Network transport accounts for less than 1.5% of total turnaround time.
-2. **Audio Payload Encoding:**
-   Completed recordings are base64-encoded by the Electron audio recorder and sent to `transcribeBytesJson`. Transmitting ~40 KB to 200 KB of base64 audio over localhost WebSocket takes under 1 ms.
-3. **The True Cost of Subprocess Bridges:**
-   Spawning external CLI tools (`curl.exe`) or creating ad-hoc processes introduces **13 ms to 50 ms** of Windows process-creation overhead and process management complexity. Graftcode completely eliminates child-process spawning by hosting Python in-process inside `gg.exe`.
-
----
-
-## Integration Code Removed by Graftcode
-
-Hosting the Python speech service directly through Graftcode Gateway removes extensive boilerplate:
-
-| Layer | Manual REST / CLI Bridge | With Graftcode Direct Integration |
-| :--- | :--- | :--- |
-| **Backend HTTP Routing** | 190 lines of custom HTTP server (`BaseHTTPRequestHandler`), path routers, Content-Length parsers, CORS headers, status codes | **0 lines:** Graftcode Gateway auto-discovers Python classes and methods directly |
-| **Client Transport Code** | 130+ lines of Node.js `http.request`, buffer streaming, error parsers, connection retry loops | **0 lines:** Auto-generated typed client (`@graft/pypi-speech-gateway`) |
-| **Subprocess / CLI Bridge** | Child process spawning logic, temporary file creation/deletion, argument escaping | **0 lines:** Direct in-process RPC over persistent WebSocket connection |
-| **Model Context Protocol (MCP)** | Writing custom SSE / Streamable HTTP servers for external AI tools | **0 lines:** Built-in standard MCP endpoints automatically exposed at `http://localhost:8085/mcp` |
-| **Type Safety & Contracts** | Manual schema documentation and runtime validation prone to contract drift | Generated typed SDK with method signatures reflecting Python types |
-
----
-
-## Graftcode Gateway & Package Management
-
-### Gateway Details
-* **Executable:** `gg.exe`
-* **Version:** `1.4.11`
-* **Hosted Runtimes:**
-  * Gateway A: `python` (pointing to `services/speech`, WebSocket port 8085, HTTP/Vision port 8086)
-  * Gateway B: `nodejs` (pointing to `services/text_gateway/index.js`, WebSocket port 8095, HTTP/Vision port 8096)
-
-### How Graft Packages Are Generated & Installed via Vision
-1. **Launch Gateway with Module:**
-   ```powershell
-   .\gg.exe --runtime python --modules services/speech --port 8085 --httpPort 8086
-   ```
-2. **Graftcode Vision Dashboard:**
-   Open `http://localhost:8085` or `http://localhost:8086` in any browser to inspect the auto-discovered services (`SpeechService`), method signatures, and live test RPC calls.
-3. **Package Generation & Publication:**
-   Graftcode automatically extracts the module metadata, types, and method schemas into a Universal Graft Module (UGM) and publishes the client SDK to the private Graftcode registry:
-   * Package: `@graft/pypi-speech-gateway`
-   * Target Registry: `https://grft.dev/3e5baa8a-b08a-4d37-b4b6-d0de29c389bc__free`
-4. **Client Installation:**
-   ```powershell
-   npm install @graft/pypi-speech-gateway --registry https://grft.dev/3e5baa8a-b08a-4d37-b4b6-d0de29c389bc__free
-   ```
-
----
-
-## Privacy & Security Sandbox
-
-- **Zero External Audio Egress:** In local engine mode, voice recording, Whisper transcription, and text sanitization execute 100% locally on your machine.
-- **Log Privacy by Default:** Transcripts and audio are never written to disk logs (`LOG_TRANSCRIPTS=false`).
-- **Temporary File Sanitization:** Audio clips written to `%TEMP%\LocalPill\` are purged immediately upon transcription. The supervisor sweeps any orphaned audio files on launch and exit.
-- **MCP Security Boundary:** The MCP tool `TranscribeFileJson` only accesses files inside `%USERPROFILE%\LocalPillRecordings`. Directory traversal (`..\..\`), Windows NTFS Directory Junctions, and symlink escapes are resolved via `os.path.realpath` and strictly blocked with `PathNotAllowedException`. File extension whitelisting (`.wav`, `.mp3`, `.m4a`, `.webm`, `.ogg`, `.flac`) and empty-file rejection are enforced.
-- **Bounded Screenshot Retention:** Screenshot memory enforces a 25-entry FIFO cap and a 24-hour lookback filter. Historical image archives are never indexed or transmitted.
-
----
-
-## Using with Claude Desktop & Antigravity (MCP)
-
-LocalPill exposes its capabilities as native tools for AI assistants.
-
-### Claude Desktop (`%APPDATA%\Claude\claude_desktop_config.json`)
-```json
-{
-  "mcpServers": {
-    "localpill-speech": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:8085/mcp"]
-    },
-    "localpill-text": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://localhost:8095/mcp"]
-    }
-  }
-}
-```
-
-### Google Antigravity (`~/.gemini/config/mcp_config.json`)
-```json
-{
-  "mcpServers": {
-    "localpill-speech": {
-      "serverUrl": "http://localhost:8085/mcp"
-    },
-    "localpill-text": {
-      "serverUrl": "http://localhost:8095/mcp"
-    }
-  }
-}
-```
-
----
-
-## Automated Test Suites & Verification
-
-LocalPill includes comprehensive test suites on Windows:
-
+### Run Unit Tests (17 tests):
 ```powershell
-# Run core test suite (Text pipeline, supervisor reliability, speech service)
 npm test
-
-# Run reproducible architecture and latency benchmark
-npm run benchmark
-
-# Run MCP integration & security boundary tests
-npm run test:mcp
-
-# Run live engine swap tests
-npm run test:engines
-
-# Run AI assistant, intent routing, and vector memory tests
-npm run test:assistant
-
-# Run Chaos test (mid-session Gateway killing & auto-recovery)
-npm run test:chaos
-
-# Run Python speech service unit tests directly
-npm run test:speech
 ```
+Tests speech normalization (number-to-words for Hindi, Tamil, Bengali; currency symbols; percentage conversion), serial queue backoff and concurrency control, and language config mappings.
+
+### Run Smoke Tests (Isolation Harness):
+```powershell
+npm run smoke
+```
+Executes isolated tests against Gnani Timbre TTS, Gnani Prisma STT, the LLM Explainer, and Gemini Vision OCR, reporting pass/fail and latency per service.
+
+---
+
+## 9. Built On
+
+Bolo evolved from our earlier hackathon submission (which utilized an on-device Python Whisper engine and a cross-language RPC bridge). 
+
+For the **Gnani AI Hackathon**, the project was completely re-architected:
+- **Removed external runtime dependencies:** Eliminated the legacy gateway binaries, Python virtual environment requirements, and proprietary RPC packages in favor of clean, native Node.js REST services.
+- **Core Hearing & Speaking with Gnani:** Replaced local Whisper with **Gnani Prisma STT** and integrated **Gnani Timbre TTS** with multi-language voice catalog mappings.
+- **Indic Normalization Engine:** Built a custom number-to-words and currency normalizer supporting Hindi, Tamil, and Bengali to ensure crisp pronunciation.
+- **Serial Concurrency Guard:** Engineered a zero-dependency serial queue with exponential 429 retry backoff.
+- **Ambient Screen Explainer Workflow:** Replaced vector screenshot search and dictation with an interactive screen-explaining assistant that supports multi-turn follow-ups with screen text caching.

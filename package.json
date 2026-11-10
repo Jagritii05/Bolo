@@ -1,28 +1,18 @@
 {
-  "name": "localpill",
+  "name": "bolo",
   "version": "1.0.0",
-  "description": "LocalPill: A private voice layer for Windows apps and AI agents with Graftcode",
+  "description": "Bolo: Screen-explaining voice agent for Indian-language speakers powered by Gnani AI",
   "main": "src/main/index.js",
   "type": "module",
   "scripts": {
     "start": "electron src/main/index.js",
-    "setup": "powershell -ExecutionPolicy Bypass -File scripts/setup.ps1",
-    "test": "node tests/test_text_pipeline.mjs && node tests/test_assistant.mjs && node tests/test_phase4_reliability.mjs && npm run test:speech",
-    "test:text": "node tests/test_text_pipeline.mjs",
-    "test:assistant": "node tests/test_assistant.mjs",
-    "test:reliability": "node tests/test_phase4_reliability.mjs",
-    "test:engines": "node tests/test_phase5_engines.mjs",
-    "test:mcp": "node tests/test_phase6_mcp.mjs",
-    "test:chaos": "powershell -ExecutionPolicy Bypass -File scripts/chaos.ps1",
-    "test:speech": ".\\.venv\\Scripts\\pytest.exe services\\speech\\tests",
-    "benchmark": "node scripts/benchmark.mjs"
+    "test": "node --test tests/unit/*.test.js",
+    "smoke": "node scripts/smoke.js"
   },
   "devDependencies": {
     "electron": "^28.3.3"
   },
   "dependencies": {
-    "@graft/npm-text-gateway": "^1.0.0",
-    "@graft/pypi-speech-gateway": "^1.0.3",
-    "ffmpeg-static": "^5.3.0"
+    "dotenv": "^16.4.7"
   }
 }

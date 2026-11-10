@@ -1,10 +1,10 @@
 node_modules/
 .venv/
 models/
+tmp/
 *.pyc
 __pycache__/
 .DS_Store
-.graftcode/
 scratch/
 gg.exe
 *.dll
@@ -13,4 +13,3 @@ gg.exe
 .env.*
 !.env.example
 .pytest_cache/
-docs/reviewer-reply.md
