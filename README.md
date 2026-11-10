@@ -2,10 +2,6 @@
 
 > An ambient, screen-aware voice assistant for Indian-language speakers on Windows, powered by **Gnani AI Vachana Speech Services (Prisma STT & Timbre TTS)**.
 
-[![Tests](https://img.shields.io/badge/tests-17%20passed-brightgreen.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-blue.svg)]()
-[![Gnani AI](https://img.shields.io/badge/Powered%20by-Gnani.ai-orange.svg)]()
-
 ---
 
 ## 1. What It Is
@@ -114,12 +110,10 @@ Bolo provides explicit language selection directly in the pill UI (no unreliable
 
 ---
 
-## 4. Honest Disclosure on LLMs Used
+## 4.LLMs Used
 
 - **Hearing & Speaking (Gnani AI):** Gnani AI Vachana models exclusively power hearing via **Prisma STT v3** and speaking via **Timbre TTS v2.5** across Hindi/Hinglish, Tamil, and Bengali.
 - **LLM Reasoning & Reply Drafting:** Bolo routes reasoning through **Groq Cloud (`qwen/qwen3.8-27b`)** or **Google Gemini (`gemini-3-flash-preview`)** behind a unified interface (`src/services/llm/index.js`).
-- **Honest Attribution:** The pill footer and console logs **always explicitly display the real provider and model that generated the answer** (e.g. `Answered by Groq (qwen/qwen3.8-27b)` or `Answered by Gemini (gemini-3-flash-preview)`). We never label output under false attribution.
-
 ---
 
 ## 5. Privacy & Security
@@ -178,24 +172,7 @@ The Bolo floating bar will appear at the bottom-center of your screen.
 
 ---
 
-## 7. Demo Walkthrough: Banking Re-KYC Form
-
-Bolo includes a realistic test form at `demo/mock-kyc-form.html` (synthetic, harmless data).
-
-1. Open `demo/mock-kyc-form.html` in Chrome or Edge.
-2. Notice the red error banner: *"Your Aadhaar-PAN linking is pending in the central registry. Please upload a clear photo of your physical PAN Card before submitting this form."*
-3. With the KYC tab open, press **`Ctrl+Shift+Space`** on your keyboard.
-4. Bolo captures the screen, extracts the text, and turns red (*"Listening in Hinglish..."*).
-5. Stay silent (or ask *"Is form mein kya error hai?"*).
-6. Bolo transcribes the question with Gnani Prisma, reasons with the LLM using real conversational Hinglish, and speaks the answer via Gnani Timbre (voice `Poorvi`):
-   > *"Screen par error dikh raha hai ki aapka Aadhaar aur PAN link nahi hai. Submit button dabane se pehle PAN card ki clear photo upload karni hogi."*
-7. **Switch Language:** Select **தமிழ் (Tamil)** in the dropdown and press the hotkey. Bolo explains the same screen in conversational Tanglish using voice `Trisha`:
-   > *"Screen-la error irukku, Aadhaar-um PAN-um link aagala. Submit button click panrathukku munnadi PAN card photo upload pannunga."*
-8. **Test Follow-Up:** Within 30 seconds, press the hotkey and ask: *"Ye PAN wala box kya maang raha hai?"*. Bolo answers using the cached screen text without recapturing the screen!
-
----
-
-## 8. Testing
+## 7. Testing
 
 ### Run Unit Tests (17 tests):
 ```powershell
@@ -211,13 +188,8 @@ Executes isolated tests against Gnani Timbre TTS, Gnani Prisma STT, the LLM Expl
 
 ---
 
-## 9. Built On
-
-Bolo evolved from our earlier hackathon submission (which utilized an on-device Python Whisper engine and a cross-language RPC bridge). 
-
-For the **Gnani AI Hackathon**, the project was completely re-architected:
-- **Removed external runtime dependencies:** Eliminated the legacy gateway binaries, Python virtual environment requirements, and proprietary RPC packages in favor of clean, native Node.js REST services.
+## 8. Built On
 - **Core Hearing & Speaking with Gnani:** Replaced local Whisper with **Gnani Prisma STT** and integrated **Gnani Timbre TTS** with multi-language voice catalog mappings.
 - **Indic Normalization Engine:** Built a custom number-to-words and currency normalizer supporting Hindi, Tamil, and Bengali to ensure crisp pronunciation.
 - **Serial Concurrency Guard:** Engineered a zero-dependency serial queue with exponential 429 retry backoff.
-- **Ambient Screen Explainer Workflow:** Replaced vector screenshot search and dictation with an interactive screen-explaining assistant that supports multi-turn follow-ups with screen text caching.
+- **Ambient Screen Explainer Workflow:** dictation with an interactive screen-explaining assistant that supports multi-turn follow-ups with screen text caching.
